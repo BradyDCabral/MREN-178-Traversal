@@ -11,7 +11,13 @@
 #define IN2_PIN 13 // not accurate 
 #define IN3_PIN 14 // not accurate
 #define IN4_PIN 15 // not accurate
-
+// ENCODER
+// LEFT
+#define ENCODER_A_L 12 // NOT ACCURATE
+#define ENCODER_B_L 13 // NOT ACCURATE
+// RIGHT
+#define ENCODER_A_R 12 // NOT ACCURATE
+#define ENCODER_B_R 13 // NOT ACCURATE
 
 // Stage management
 STAGE stage = START;
@@ -59,6 +65,11 @@ void setup() {
   // Setup Motor
   Lmotor.init(IN1_PIN, IN2_PIN, Lchannel);
   Rmotor.init(IN3_PIN, IN4_PIN, Rchannel);
+  // Setup Motor Encoders
+  pinMode(ENCODER_A_L, INPUT_PULLUP);
+  pinMode(ENCODER_B_L, INPUT_PULLUP);
+  pinMode(ENCODER_A_R, INPUT_PULLUP);
+  pinMode(ENCODER_B_R, INPUT_PULLUP);
 
 
   delay(100);
@@ -130,6 +141,10 @@ void loop() {
     default:
       break;
   }
+}
+
+void Interrupt_A_LMotor() {
+  // some bullshit
 }
 
 
