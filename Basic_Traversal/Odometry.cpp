@@ -18,3 +18,8 @@ int UpdateYAW(float Gz, float *zR, float *oR, float Dt) {
   return SUCCESS;
 
 }
+
+int Wheel_Tracking(float rpsL, float rpsR, float *theta, float *x, float *y, bool frwrd, float Dt) {
+  // fill out later
+  return SUCCESS;
+}

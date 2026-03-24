@@ -24,7 +24,12 @@
 // Stage management
 STAGE stage = START;
 
-
+// WHEEL Shit
+// Yaw from wheel Odometry
+float zR_W = 0;
+// local x and y positions
+float x_Whl = 0;
+float y_Whl = 0;
 
 // Yaw
 // stores previous YAW
@@ -105,7 +110,17 @@ void loop() {
   sensors_event_t a, g, temp;
   mpu.getEvent(&a, &g, &temp);
   
+  // updates YAW using mpu
   UpdateYAW(g.gyro.z, &zR, &omegaZ, Delta_Millis);
+
+  // Updates position data using wheel encoders 
+  // IMPORTANT motorDir_R is unsure what high means but will be assumed that high means the bot will move forward
+  // if not the case then must swap something around 
+  // also assumed both wheels going same direction if not the case don't use this function so there should be some check if the case
+  // probably have it so this only updates in certain cases so this function might not be called in this spot in future
+  // TLDR: might be moved to corresponding case
+  Wheel_Tracking(RPS_L, RPS_R, &zR_W, &x_Whl, &y_Whl, motorDir_R, Delta_Millis);
+
 
   // Motor wheels will be updated using an interrupt function shown in 
   // https://github.com/adafruit/Adafruit_Motor_Shield_V2_Library/blob/master/examples/encoderMotorRPM/encoderMotorRPM.ino
