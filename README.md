@@ -2,4 +2,4 @@
 Designed to operate a custom robot inorder to traverse simple maze
 
 
-*You will need to update <Cdrv8833.h> to provided one*
+*You will need to update <Cdrv8833.h> to provided use proper Ledc functions*
