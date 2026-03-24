@@ -80,6 +80,10 @@ void loop() {
   
   UpdateYAW(g.gyro.z, &zR, &omegaZ, Delta_Millis);
 
+  // Motor wheels will be updated using an interrupt function shown in 
+  // https://github.com/adafruit/Adafruit_Motor_Shield_V2_Library/blob/master/examples/encoderMotorRPM/encoderMotorRPM.ino
+  // then speeds will be used to determine distance travelled which can give approximates to positions
+
   switch (stage) {
     case START:
       // evaluates if at a proper spawn ie. walls on both sides
