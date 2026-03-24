@@ -12,6 +12,8 @@
 #define IN3_PIN 14 // not accurate
 #define IN4_PIN 15 // not accurate
 // ENCODER
+#define GEARING 50 // might not be accurate
+#define ENCODERMULT 12 // definetly NOT ACCURATE
 // LEFT
 #define ENCODER_A_L 12 // NOT ACCURATE
 #define ENCODER_B_L 13 // NOT ACCURATE
@@ -51,6 +53,16 @@ const uint8_t Lchannel = 0; // not set
 Cdrv8833 Rmotor;
 const uint8_t Rchannel = 1; // not set
 
+// L motor SPEED info
+volatile float RPS_L = 0; // rev / sec
+volatile uint32_t lastA_L = 0; // last time since interupt
+volatile bool motorDir_L = HIGH; // not sure how to treat this yet
+
+// R motor SPEED info
+volatile float RPS_R = 0; // rev / sec
+volatile uint32_t lastA_R = 0; // last time since interupt
+volatile bool motorDir_R = HIGH; // not sure how to treat this yet
+
 
 void setup() {
   // put your setup code here, to run once:
@@ -61,7 +73,7 @@ void setup() {
   mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
   mpu.setGyroRange(MPU6050_RANGE_500_DEG);
   mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
-
+  
   // Setup Motor
   Lmotor.init(IN1_PIN, IN2_PIN, Lchannel);
   Rmotor.init(IN3_PIN, IN4_PIN, Rchannel);
@@ -71,7 +83,11 @@ void setup() {
   pinMode(ENCODER_A_R, INPUT_PULLUP);
   pinMode(ENCODER_B_R, INPUT_PULLUP);
 
+  // Setup interrupt functions 
+  attachInterrupt(ENCODER_A_L, Interrupt_A_LMotor, RISING);
+  attachInterrupt(ENCODER_A_R, Interrupt_A_RMotor, RISING);
 
+  // not sure why this is here
   delay(100);
   Total_Millis = millis();
 }
@@ -138,15 +154,46 @@ void loop() {
       /* STOP EVERYTHING CONGRATS MAYBE DO CELEBRATORY MESSAGE
       */
       break;
+    case TEST:
+      // in the name used for testing components whilst avoiding most of the regular flow of code
+      break;
     default:
       break;
   }
 }
 
+// adapted from https://github.com/adafruit/Adafruit_Motor_Shield_V2_Library/blob/master/examples/encoderMotorRPM/encoderMotorRPM.ino
 void Interrupt_A_LMotor() {
-  // some bullshit
+  motorDir_L = digitalRead(ENCODER_B_L);
+
+
+  uint32_t currA_L = micros();
+  if (lastA_L < currA_L) {
+    float rev = currA_L - lastA_L;
+    rev = 1.0 / rev;
+    rev *= 1000000;
+    rev /= GEARING;
+    rev /= ENCODERMULT;
+    RPS_L = rev;
+  }
+  lastA_L = currA_L;
 }
 
+void Interrupt_A_RMotor() {
+  motorDir_R = digitalRead(ENCODER_B_R);
+
+
+  uint32_t currA_R = micros();
+  if (lastA_R < currA_R) {
+    float rev = currA_R - lastA_R;
+    rev = 1.0 / rev;
+    rev *= 1000000;
+    rev /= GEARING;
+    rev /= ENCODERMULT;
+    RPS_R = rev;
+  }
+  lastA_R = currA_R;
+}
 
 void DTime(unsigned long TempT, unsigned long *TotalT) {
   Delta_Millis = (float)(TempT - *TotalT)/1000;
