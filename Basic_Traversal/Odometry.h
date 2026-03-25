@@ -5,8 +5,12 @@
 
 #define DRIFT_rZ 0.01
 #define rZ_DEADZONE 0.001
+
+#define Equal_Threshold 0.01
+
 #define FAIL -1
 #define SUCCESS 1
+
 
 // Wheel odometry information
 #define WHEEL_RADIUS 0.1 // in (m)
