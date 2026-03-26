@@ -325,6 +325,9 @@ void loop() {
           BrakeMotors();
           delay(MOTOR_DELAY);
           stage = DETERMINE_NEXT_STEP;
+          display.clearDisplay();
+          display.println("MAKING DECISION");
+          display.display();
         }
       }
       
@@ -359,6 +362,12 @@ void loop() {
         }
       } else {
         stage = EXIT_NODE_CENTRE;
+        Lmotor.move(MOTOR_STNDRD_POWER);
+        Rmotor.move(MOTOR_STNDRD_POWER);
+
+        display.clearDisplay();
+        display.println("EXIT NODE");
+        display.display();
       }
       break;
     case EXIT_NODE_CENTRE:
@@ -366,10 +375,21 @@ void loop() {
       * used as error to determine action 
       * NEXT: FOLLOW_HALLWAY
       */
+      if (Left_Distance < MAX_WALL_DIST && Right_Distance < MAX_WALL_DIST) {
+        BrakeMotors();
+        delay(MOTOR_DELAY);
+        stage = FOLLOW_HALLWAY;
+        display.clearDisplay();
+        display.println("FOLLOW HALLWAY");
+        display.display();
+      }
       break;
     case FOUND_EXIT:
       /* STOP EVERYTHING CONGRATS MAYBE DO CELEBRATORY MESSAGE
       */
+      display.clearDisplay();
+      display.println("FUCK YEAH");
+      display.display();
       break;
     case TEST:
       // in the name used for testing components whilst avoiding most of the regular flow of code
