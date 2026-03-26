@@ -27,6 +27,15 @@
 // Stage management
 STAGE stage = START;
 #define HALLWAY_ERROR_DEADZONE 0.005 // NOT ACCURATE
+bool Adjusting_Angle = false;
+float Start_phs_X = 0;
+float Start_phs_Y = 0;
+uint8_t CW = 0;
+
+// Entering Centre of node
+#define DISTANCE_TO_CENTRE 0.1
+#define CENTRE_DIST_GIVE 0.005
+#define CENTRE_ANGLE_GIVE 1 // degree
 
 // WHEEL Shit
 // Yaw from wheel Odometry
@@ -41,6 +50,7 @@ float omegaZ = 0;
 // stores absolute YAW
 float zR = 0;
 float Target_Z = 0;
+float M_zR = 0; // yaw used in error calculations
 
 // yaw from wheel odometry
 float Z_wO = 0;
@@ -209,7 +219,14 @@ void loop() {
   // Motor wheels will be updated using an interrupt function shown in 
   // https://github.com/adafruit/Adafruit_Motor_Shield_V2_Library/blob/master/examples/encoderMotorRPM/encoderMotorRPM.ino
   // then speeds will be used to determine distance travelled which can give approximates to positions
+  
+  // temp values
   float error;
+  float error_Angle;
+  float error_X;
+  float error_Y;
+
+  M_zR = zR; // change if odometry is more accurate 
   switch (stage) {
     case START:
       // evaluates if at a proper spawn ie. walls on both sides
@@ -242,6 +259,10 @@ void loop() {
         display.clearDisplay();
         display.println("ENTERING NODE");
         display.display();
+        // setup variables
+        Adjusting_Angle = true;
+        Start_phs_X = x_Whl;
+        Start_phs_Y = y_Whl;
       } 
       /* To the left  */else if (error > HALLWAY_ERROR_DEADZONE) {
         Lmotor.stop(); // nmight brake
@@ -262,17 +283,83 @@ void loop() {
       * (simple) straighten bot then move forward a slight amount just a rough amount (depends on time)
       * NEXT: DETERMINE_NEXT_STEP
       */
+      // if true adjust angle to be close to target angle 
+      if (Adjusting_Angle) { // degrees
+        // might update Start_phs_X & Y after Angle reached
+        error_Angle = fmod((Target_Z - M_zR + 360), 360);
+        if ((abs(error_Angle) >= CENTRE_ANGLE_GIVE)){
+          if (error_Angle >= 0 && error_Angle <= 180 && CW != 1) { // CW turn
+            // Turn LeftWhl Back, Turn RghtWhl FRWRD
+            CW = 1;
+            BrakeMotors();
+            delay(MOTOR_DELAY);
+            Lmotor.move(-MOTOR_TURN_POWER);
+            Rmotor.move(MOTOR_TURN_POWER);
+          } else if (error_Angle > 180 && error_Angle < 360 && CW != 2){
+            // Turn LeftWhl FRWD, Turn RghtWhl BCK
+            CW = 2;
+            BrakeMotors();
+            delay(MOTOR_DELAY);
+            Lmotor.move(MOTOR_TURN_POWER);
+            Rmotor.move(-MOTOR_TURN_POWER);
+          }
+        } else {
+          BrakeMotors();
+          delay(MOTOR_DELAY);
+          Adjusting_Angle = false;
+          // might change these
+          x_Whl = 0;
+          y_Whl = 0;
+          Start_phs_X = 0;
+          Start_phs_Y = 0;
+          CW = 0;
+          Lmotor.move(MOTOR_STNDRD_POWER);
+          Rmotor.move(MOTOR_STNDRD_POWER);
+        }
+
+      } /* Move forward a little */ else {
+        error_X = x_Whl - Start_phs_X;
+        error_Y = y_Whl - Start_phs_Y;
+        error = DISTANCE_TO_CENTRE - hypotf(error_X, error_Y);
+        if (error <= CENTRE_DIST_GIVE) {
+          BrakeMotors();
+          delay(MOTOR_DELAY);
+          stage = DETERMINE_NEXT_STEP;
+        }
+      }
+      
       break;
     case DETERMINE_NEXT_STEP:
-      /* Use matrix or some other method based on if searching or not to determine next angle to move
+      /* Use graph or some other method based on if searching or not to determine next angle to move
       * ROTATE_TO_DESTINATION
       */
+
       break;
     case ROTATE_TO_DESTINATION:
       /* Use desired YAW and approximate global YAW to determine how much wheels should rotate 
       * rotate wheels in opposite directions to try to stay at centre when rotating
       * NEXT: EXIT_NODE_CENTRE
       */
+      error_Angle = fmod((Target_Z - M_zR + 360), 360);
+      if ((abs(error_Angle) >= CENTRE_ANGLE_GIVE)){
+        if (error_Angle >= 0 && error_Angle <= 180 && CW != 1) { // CW turn
+          // Turn LeftWhl Back, Turn RghtWhl FRWRD
+          CW = 1;
+          BrakeMotors();
+          delay(MOTOR_DELAY);
+          Lmotor.move(-MOTOR_TURN_POWER);
+          Rmotor.move(MOTOR_TURN_POWER);
+        } else if (error_Angle > 180 && error_Angle < 360 && CW != 2){
+          // Turn LeftWhl FRWD, Turn RghtWhl BCK
+          CW = 2;
+          BrakeMotors();
+          delay(MOTOR_DELAY);
+          Lmotor.move(MOTOR_TURN_POWER);
+          Rmotor.move(-MOTOR_TURN_POWER);
+        }
+      } else {
+        stage = EXIT_NODE_CENTRE;
+      }
       break;
     case EXIT_NODE_CENTRE:
       /* Similar to enter node centre except this time difference between angle and desired angle will be
