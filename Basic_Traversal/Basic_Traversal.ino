@@ -1,6 +1,7 @@
 #include "Odometry.h"
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
+#include <Adafruit_VL53L0X.h>
 #include <Wire.h>
 #include <Cdrv8833.h>
 
@@ -43,6 +44,7 @@ float Z_wO = 0;
 
 
 // Adafruit mpu
+// default address = 0x68
 Adafruit_MPU6050 mpu;
 
 
@@ -69,12 +71,35 @@ volatile uint32_t lastA_R = 0; // last time since interupt
 volatile bool motorDir_R = HIGH; // not sure how to treat this yet
 
 
+// VL53L0X range sensor variables
+Adafruit_VL53L0X Front_Range_S = Adafruit_VL53L0X();
+const int Shut_X_Front = 12; // unknown
+#define Front_Address 0x27
+
+Adafruit_VL53L0X Right_Range_S = Adafruit_VL53L0X();
+const int Shut_X_Right = 13; // unknown
+#define Right_Address 0x26
+
+Adafruit_VL53L0X Left_Range_S = Adafruit_VL53L0X();
+const int Shut_X_Left = 13; // unknown
+#define Left_Address 0x25
+
+#define MAX_WALL_DIST 0.1 // this is a guess
+
+// Range Sensor Data
+float Front_Distance = 0;
+float Right_Distance = 0;
+float Left_Distance = 0;
+
+
+
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
 
 
   // Setup MPU
+  mpu.begin();
   mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
   mpu.setGyroRange(MPU6050_RANGE_500_DEG);
   mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
@@ -91,6 +116,32 @@ void setup() {
   // Setup interrupt functions 
   attachInterrupt(ENCODER_A_L, Interrupt_A_LMotor, RISING);
   attachInterrupt(ENCODER_A_R, Interrupt_A_RMotor, RISING);
+
+  // Setup Range Sensors 
+  pinMode(Shut_X_Front, OUTPUT);
+  pinMode(Shut_X_Right, OUTPUT);
+  pinMode(Shut_X_Left, OUTPUT);
+
+  // Setup assuming all connected to the same I2C bus
+  // Turn off ALL for reset
+  digitalWrite(Shut_X_Front, LOW);
+  digitalWrite(Shut_X_Right, LOW);
+  digitalWrite(Shut_X_Left, LOW);
+  delay(10);
+  digitalWrite(Shut_X_Front, HIGH);
+  digitalWrite(Shut_X_Right, HIGH); // might need to omit
+  digitalWrite(Shut_X_Left, HIGH); // might need to omit
+  // turn off all but front then assign address
+  digitalWrite(Shut_X_Right, LOW);
+  digitalWrite(Shut_X_Left, LOW);
+  Front_Range_S.begin(Front_Address);
+  digitalWrite(Shut_X_Right, HIGH);
+  Right_Range_S.begin(Right_Address);
+  digitalWrite(Shut_X_Left, HIGH);
+  Left_Range_S.begin(Left_Address);
+
+
+
 
   // not sure why this is here
   delay(100);
@@ -121,6 +172,20 @@ void loop() {
   // TLDR: might be moved to corresponding case
   Wheel_Tracking(RPS_L, RPS_R, &zR_W, &x_Whl, &y_Whl, motorDir_R, Delta_Millis);
 
+  // Updates Range Sensors
+  // BLAH BLAH BLAH
+
+  // start with front data
+  Front_Distance = ((float)Front_Range_S.readRange())*1000;
+  uint8_t Front_Correct = Front_Range_S.readRangeStatus();
+
+  // start with Right data
+  Right_Distance = ((float)Right_Range_S.readRange())*1000;
+  uint8_t Right_Correct = Right_Range_S.readRangeStatus();
+
+  // start with Left data
+  Left_Distance = ((float)Left_Range_S.readRange())*1000;
+  uint8_t Left_Correct = Left_Range_S.readRangeStatus();
 
   // Motor wheels will be updated using an interrupt function shown in 
   // https://github.com/adafruit/Adafruit_Motor_Shield_V2_Library/blob/master/examples/encoderMotorRPM/encoderMotorRPM.ino
