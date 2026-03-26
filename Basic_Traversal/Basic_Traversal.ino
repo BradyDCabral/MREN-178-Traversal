@@ -2,6 +2,8 @@
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_VL53L0X.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
 #include <Wire.h>
 #include <Cdrv8833.h>
 
@@ -24,6 +26,7 @@
 
 // Stage management
 STAGE stage = START;
+#define HALLWAY_ERROR_DEADZONE 0.005 // NOT ACCURATE
 
 // WHEEL Shit
 // Yaw from wheel Odometry
@@ -55,6 +58,10 @@ unsigned long Temp_Millis;
 
 
 // Motor control
+#define MOTOR_DELAY 20
+#define MOTOR_TURN_POWER 50 // NOT ACCURATE
+#define MOTOR_STNDRD_POWER 80 // NOT ACCURATE
+
 Cdrv8833 Lmotor;
 const uint8_t Lchannel = 0; // not set
 Cdrv8833 Rmotor;
@@ -91,6 +98,11 @@ float Front_Distance = 0;
 float Right_Distance = 0;
 float Left_Distance = 0;
 
+// SCREEN
+#define SCREEN_HEIGHT 128
+#define SCREEN_WIDTH 64
+
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
 
 void setup() {
@@ -105,8 +117,10 @@ void setup() {
   mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
   
   // Setup Motor
+  // will need to swap one to have consistency
   Lmotor.init(IN1_PIN, IN2_PIN, Lchannel);
   Rmotor.init(IN3_PIN, IN4_PIN, Rchannel);
+
   // Setup Motor Encoders
   pinMode(ENCODER_A_L, INPUT_PULLUP);
   pinMode(ENCODER_B_L, INPUT_PULLUP);
@@ -140,7 +154,12 @@ void setup() {
   digitalWrite(Shut_X_Left, HIGH);
   Left_Range_S.begin(Left_Address);
 
-
+  // Setup Screen
+  display.begin(SSD1306_SWITCHCAPVCC, 0x3C); // check if address is correct
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(WHITE);
+  display.setCursor(0, 10);
 
 
   // not sure why this is here
@@ -190,19 +209,50 @@ void loop() {
   // Motor wheels will be updated using an interrupt function shown in 
   // https://github.com/adafruit/Adafruit_Motor_Shield_V2_Library/blob/master/examples/encoderMotorRPM/encoderMotorRPM.ino
   // then speeds will be used to determine distance travelled which can give approximates to positions
-
+  float error;
   switch (stage) {
     case START:
       // evaluates if at a proper spawn ie. walls on both sides
       // can set up hallway movement
       // NEXT: FOLLOW_HALLWAY
+      stage = FOLLOW_HALLWAY;
+      display.clearDisplay();
+      display.println("FOLLOW HALLWAY");
+      display.display();
       break;
     case FOLLOW_HALLWAY:
       // just use range sensors to determine how close to walls
       // use error L-R (sensor values) and make decision based on this 
       // might use wheel odometry not sure
       // need to also be checking if over magnet 
-      // NEXT: ENTER_NODE_CENTRE || FOUND_EXIT
+      // NEXT: ENTER_NODE_CENTRE || FOUND_EXIT || DETERMINE_NEXT_STEP (if dead_end detected)
+      error = Left_Distance - Right_Distance;
+      // Dead end detected need to make decision
+      if (Front_Distance < MAX_WALL_DIST && Left_Distance < MAX_WALL_DIST && Right_Distance < MAX_WALL_DIST) {
+        BrakeMotors();
+        delay(MOTOR_DELAY);
+        stage = DETERMINE_NEXT_STEP;
+        display.clearDisplay();
+        display.println("MAKING DECISION");
+        display.display();
+      } /* Entering Node */ else if (Left_Distance >= MAX_WALL_DIST || Right_Distance >= MAX_WALL_DIST) {
+        // not sure what prep must be done but switch to next stage
+        BrakeMotors();
+        stage = ENTER_NODE_CENTRE;
+        display.clearDisplay();
+        display.println("ENTERING NODE");
+        display.display();
+      } 
+      /* To the left  */else if (error > HALLWAY_ERROR_DEADZONE) {
+        Lmotor.stop(); // nmight brake
+        Rmotor.move(MOTOR_TURN_POWER);
+      } /* To the right */else if (error < - HALLWAY_ERROR_DEADZONE) {
+        Rmotor.stop(); // might brake
+        Lmotor.move(MOTOR_TURN_POWER);
+      } /* Centre */ else {
+        Lmotor.move(MOTOR_STNDRD_POWER);
+        Rmotor.move(MOTOR_STNDRD_POWER);
+      } // NEED TO ADD CONDITION IF AT EXIT or put this outside the switch statement
       break;
     case ENTER_NODE_CENTRE:
       /* make way to centre of the node trying to maintain angle and not stray to the side
@@ -278,4 +328,9 @@ void Interrupt_A_RMotor() {
 void DTime(unsigned long TempT, unsigned long *TotalT) {
   Delta_Millis = (float)(TempT - *TotalT)/1000;
   *TotalT = TempT;
+}
+
+void BrakeMotors() {
+  Lmotor.brake();
+  Rmotor.brake();
 }
