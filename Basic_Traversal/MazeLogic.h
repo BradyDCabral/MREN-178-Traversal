@@ -11,13 +11,21 @@
 
 #define Angle_Threshold 10
 
+// Max vertices in the maze graph; A* uses Key in 1..MAX_NODES
+#define MAX_NODES 30
+#define INF 9999.0f
 
+// Use until you assign a cell when mapping the explored maze to a grid (for A* heuristic)
+#define VERTEX_GRID_UNSET ((int16_t)-1)
 
+// Neighbours[i]: edge in direction i — see ReturnProperIndex / ReturnProperAngleFromIndex (0=N, 1=E, 2=S, 3=W style)
 // Each Vertex in graph/Maze
 typedef struct vertex {
-  uint32_t Key; // Identifier
+  uint32_t Key; // Identifier; must stay in 1..MAX_NODES for AStar_Search
   uint8_t Colour; // identifies if this vertex has been visited in searching
-  struct vertex *Neighbours[4]; // Adjacency list (doesn't need to be a LL because MAX 4 neighbours)
+  struct vertex *Neighbours[4]; // NULL = no wall passage / no neighbour
+  int16_t row; // grid row for A* heuristic (Manhattan); VERTEX_GRID_UNSET if unknown
+  int16_t col; // grid column
 } Vertex, Vx, *pVertex;
 
 // graph with all nodes in Maze

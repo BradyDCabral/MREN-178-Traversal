@@ -1,5 +1,6 @@
 #include <cmath>
 #include <stdlib.h>
+#include <string.h>
 #include "MazeLogic.h"
 
 
@@ -14,6 +15,9 @@ int CreateEmptyVertex(pVertex *new_vertex, int *count) {
   *new_vertex = (pVertex)malloc(sizeof(Vertex));
   (*new_vertex)->Key = ++(*count);
   (*new_vertex)->Colour = GREEN;
+  memset((*new_vertex)->Neighbours, 0, sizeof((*new_vertex)->Neighbours));
+  (*new_vertex)->row = VERTEX_GRID_UNSET;
+  (*new_vertex)->col = VERTEX_GRID_UNSET;
 
   return 0;
 }
