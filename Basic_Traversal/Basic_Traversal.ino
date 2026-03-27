@@ -11,6 +11,10 @@
 
 // CONSTANTS
 
+// I2C
+#define SDA_PIN 8
+#define SCL_PIN 9
+
 // Motor
 #define IN1_PIN 12 // not accurate
 #define IN2_PIN 13 // not accurate 
@@ -128,6 +132,9 @@ pVertex Current_Node;
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
+
+  // Setup I2C
+  Wire.begin(SDA_PIN, SCL_PIN);
 
 
   // Setup MPU
