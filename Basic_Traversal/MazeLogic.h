@@ -24,7 +24,7 @@ typedef struct tree {
   pVertex Root; 
 } Tree, *pTree;
 
-// angle Stace element
+// angle Stack element
 typedef struct angle_element {
   struct angle_element *Next;
   float Angle;
