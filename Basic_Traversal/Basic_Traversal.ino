@@ -107,14 +107,22 @@ const int Shut_X_Left = 13; // unknown
 
 // Range Sensor Data
 float Front_Distance = 0;
+float prev_Front_Distance = 0;
 float Right_Distance = 0;
+float prev_Right_Distance = 0;
 float Left_Distance = 0;
+float prev_Left_Distance = 0;
 
 // SCREEN
 #define SCREEN_HEIGHT 128
 #define SCREEN_WIDTH 64
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+
+// MAZE LOGIC CRAP
+pGraph Maze;
+pVertex Current_Node;
+
 
 
 void setup() {
@@ -166,12 +174,21 @@ void setup() {
   digitalWrite(Shut_X_Left, HIGH);
   Left_Range_S.begin(Left_Address);
 
+
+  // get prev Sensor data
+  Front_Distance = ((float)Front_Range_S.readRange())*1000;
+  Right_Distance = ((float)Right_Range_S.readRange())*1000;
+  Left_Distance = ((float)Left_Range_S.readRange())*1000;
+
   // Setup Screen
   display.begin(SSD1306_SWITCHCAPVCC, 0x3C); // check if address is correct
   display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(WHITE);
   display.setCursor(0, 10);
+
+  // Setup Maze 
+  Maze = createGraph();
 
 
   // not sure why this is here
@@ -207,14 +224,17 @@ void loop() {
   // BLAH BLAH BLAH
 
   // start with front data
+  prev_Front_Distance = Front_Distance;
   Front_Distance = ((float)Front_Range_S.readRange())*1000;
   uint8_t Front_Correct = Front_Range_S.readRangeStatus();
 
   // start with Right data
+  prev_Right_Distance = Right_Distance;
   Right_Distance = ((float)Right_Range_S.readRange())*1000;
   uint8_t Right_Correct = Right_Range_S.readRangeStatus();
 
   // start with Left data
+  prev_Left_Distance = Left_Distance;
   Left_Distance = ((float)Left_Range_S.readRange())*1000;
   uint8_t Left_Correct = Left_Range_S.readRangeStatus();
 
