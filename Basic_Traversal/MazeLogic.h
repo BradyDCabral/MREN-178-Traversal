@@ -12,6 +12,7 @@
 #define Angle_Threshold 10
 
 
+
 // Each Vertex in graph/Maze
 typedef struct vertex {
   uint32_t Key; // Identifier
