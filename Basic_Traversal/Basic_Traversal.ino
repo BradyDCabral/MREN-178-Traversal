@@ -7,6 +7,7 @@
 #include <Adafruit_SSD1306.h>
 #include <Wire.h>
 #include <Cdrv8833.h>
+#include "M_CONSTANTS.h"
 
 // CONSTANTS
 
@@ -102,7 +103,7 @@ Adafruit_VL53L0X Left_Range_S = Adafruit_VL53L0X();
 const int Shut_X_Left = 13; // unknown
 #define Left_Address 0x25
 
-#define MAX_WALL_DIST 0.1 // this is a guess
+// #define MAX_WALL_DIST 0.1 // this is a guess
 
 // Range Sensor Data
 float Front_Distance = 0;

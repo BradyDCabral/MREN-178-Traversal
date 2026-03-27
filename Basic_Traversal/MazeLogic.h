@@ -3,10 +3,13 @@
 #define MAZELOGIC_H
 
 #include <Arduino.h>
+#include "M_CONSTANTS.h"
 
 #define GREEN 0
 #define BLUE 1
 #define RED 2
+
+#define Angle_Threshold 10
 
 
 // Each Vertex in tree/Maze
@@ -25,30 +28,34 @@ typedef struct tree {
 typedef struct angle_element {
   struct angle_element *Next;
   float Angle;
-} Angle_E, pAngle_E;
+} Angle_E, *pAngle_E;
 
 // Stack for angles to return
 typedef struct angle_stack {
   pAngle_E Head;
-}
-
+} Angle_Stack, *pAngle_Stack;
 
 // Elements in Frontier
 typedef struct future_v_element {
   pVertex Destination;
-
-}
+  Angle_Stack Return_Angles;
+} Future_V_Element, *pFuture_V_Element;
 
 
 // Stack for Frontier
-// typedef struct Stack_
+typedef struct stack_future_v {
+  pFuture_V_Element Head;
+} Stack_Future_V, *pStack_Future_V;
 
 
 // Creates a tree
 Tree* createTree();
 
+// Creates a Vertex
+int CreateVertex(pVertex new_vertex, float target_angle, float L_distance, float F_distance, float R_distance);
 
-
+// certain angles will be represented based on position in Neighbours[4] array
+int ReturnProperIndex(float angle);
 
 
 
