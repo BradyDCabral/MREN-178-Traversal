@@ -8,4 +8,4 @@ Designed to operate a custom robot inorder to traverse simple maze
 
 ALSO note for graders or fellow contributors:
 Although the files are written in c++ they are primarily treated & written as though they are written in
-C with the except of certain c++ variables used and slight syntax differences
+C with the exception of certain c++ variables used and slight syntax differences
