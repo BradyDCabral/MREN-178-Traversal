@@ -12,17 +12,17 @@
 #define Angle_Threshold 10
 
 
-// Each Vertex in tree/Maze
+// Each Vertex in graph/Maze
 typedef struct vertex {
   uint32_t Key; // Identifier
   uint8_t Colour; // identifies if this vertex has been visited in searching
   struct vertex *Neighbours[4]; // Adjacency list (doesn't need to be a LL because MAX 4 neighbours)
 } Vertex, Vx, *pVertex;
 
-// tree with all nodes in Maze
-typedef struct tree {
+// graph with all nodes in Maze
+typedef struct graph {
   pVertex Root; 
-} Tree, *pTree;
+} Graph, *pGraph;
 
 // angle Stack element
 typedef struct angle_element {
@@ -48,14 +48,21 @@ typedef struct stack_future_v {
 } Stack_Future_V, *pStack_Future_V;
 
 
-// Creates a tree
-Tree* createTree();
+// Creates a graph
+Graph* createGraph();
+
+
+// Creates empty green Vertex
+int CreateEmptyVertex(pVertex *new_vertex, int *count);
 
 // Creates a Vertex
-int CreateVertex(pVertex new_vertex, float target_angle, float L_distance, float F_distance, float R_distance);
+int CreateVertex(pVertex new_vertex, float target_angle, float L_distance, float F_distance, float R_distance, int *count);
 
 // certain angles will be represented based on position in Neighbours[4] array
 int ReturnProperIndex(float angle);
+
+// reverse of above function
+float ReturnProperAngleFromIndex(int ind);
 
 
 
