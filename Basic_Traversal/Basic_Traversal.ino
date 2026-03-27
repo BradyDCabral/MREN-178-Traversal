@@ -1,4 +1,5 @@
 #include "Odometry.h"
+#include "MazeLogic.h"
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_VL53L0X.h>

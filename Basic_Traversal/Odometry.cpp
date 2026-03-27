@@ -34,17 +34,28 @@ int Wheel_Tracking(float rpsL, float rpsR, float *theta, float *x, float *y, boo
 
   float D_Lengths = D_L - D_R;
 
+  float theta_m;
+  float temp_y;
   if ((D_Lengths < Equal_Threshold) && (D_Lengths > -Equal_Threshold)) {
-    *y += D_R;
+    temp_y += D_R;
+    theta_m = *theta;
   } else {
     
 
     // get local y offset
-    float temp_y = 2 * sin((double)(D_theta/2)) * (D_R/D_theta + Sr);
+    temp_y = 2 * sin((double)(D_theta/2)) * (D_R/D_theta + Sr);
 
-    float theta_m = *theta + (D_theta/2);
+    theta_m = *theta + (D_theta/2);
 
-    // to polar 
+   
+
+
+
+    // update absolute theta might need to check sign
+    *theta += D_theta;
+  }
+
+   // to polar 
     float p_r = temp_y;
     float p_theta = (std::numbers::pi)/2;
 
@@ -57,12 +68,6 @@ int Wheel_Tracking(float rpsL, float rpsR, float *theta, float *x, float *y, boo
 
     *x += temp_x;
     *y += temp_y;
-
-
-
-    // update absolute theta might need to check sign
-    *theta += D_theta;
-  }
 
   return SUCCESS;
 }
