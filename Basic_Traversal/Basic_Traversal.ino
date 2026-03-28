@@ -25,11 +25,11 @@
 #define GEARING 50 // might not be accurate
 #define ENCODERMULT 12 // definetly NOT ACCURATE
 // LEFT
-#define ENCODER_A_L 10 // NOT ACCURATE
-#define ENCODER_B_L 11 // NOT ACCURATE
+#define ENCODER_A_L 17 // NOT ACCURATE
+#define ENCODER_B_L 18 // NOT ACCURATE
 // RIGHT
-#define ENCODER_A_R 12 // NOT ACCURATE
-#define ENCODER_B_R 13 // NOT ACCURATE
+#define ENCODER_A_R 11 // NOT ACCURATE
+#define ENCODER_B_R 12 // NOT ACCURATE
 
 // Stage management
 STAGE stage = START;
@@ -122,7 +122,7 @@ float prev_Left_Distance = 0;
 #define SCREEN_HEIGHT 64
 #define SCREEN_WIDTH 128
 
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire1, -1);
 
 // Reed Switch
 #define REED_SWITCH_PIN 12
@@ -132,9 +132,12 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 unsigned long REED_TRIGGERED_TIME = 0;
 unsigned long REED_DELTA_TIME = 0;
 
+
 // MAZE LOGIC CRAP
 pGraph Maze;
 pVertex Current_Node;
+
+
 
 
 
@@ -147,11 +150,33 @@ void setup() {
 
   // Setup I2C
   Wire.begin(SDA_PIN, SCL_PIN);
+  Wire1.begin(13,14);
 
+  delay(500);
+  // Setup Screen
+  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { }
+    // Serial.println("SSD1306 allocation failed");
+  // } else Serial.println("allocation screen success");
+  // check if address is correct
+  display.display();
+  delay(2000);
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(WHITE);
+  display.setCursor(0, 0);
+
+  display.println("WORKS");
+  display.display();
 
   // Setup MPU
   if (!mpu.begin()) {
-  } else {}
+    UpdateDisplay("MPU not work");
+  } else {
+
+    display.clearDisplay();
+    display.println("MPUConnected");
+    display.display();
+  }
   
   mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
   mpu.setGyroRange(MPU6050_RANGE_500_DEG);
@@ -175,45 +200,46 @@ void setup() {
   digitalWrite(Shut_X_Right, LOW);
   digitalWrite(Shut_X_Left, LOW);
   if (!Front_Range_S.begin(Front_Address));
-  else ;
+  else UpdateDisplay("FRONT WORKS");
+  delay(500);
+
   // Serial.println(Front_Range_S.readRange());
   digitalWrite(Shut_X_Right, HIGH);
   // Right_Range_S.begin(Right_Address);
   if (!Right_Range_S.begin(Right_Address)) ;
+  else UpdateDisplay("Right WORKS");
+  delay(500);
   // else Serial.println("RIGHT SENSOR WORKS");
   // Serial.println(Right_Range_S.readRange());
   digitalWrite(Shut_X_Left, HIGH);
   if (!Left_Range_S.begin(Left_Address));
+  else UpdateDisplay("LEFT Works");
+  delay(500);
   // else Serial.println("LEFT SENSOR WORKS");
   // Serial.println(Left_Range_S.readRange());
 
-  delay(500);
-  // Setup Screen
-  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { }
-    // Serial.println("SSD1306 allocation failed");
-  // } else Serial.println("allocation screen success");
-  // check if address is correct
-  display.display();
-  delay(2000);
-  display.clearDisplay();
-  display.setTextSize(1);
-  display.setTextColor(WHITE);
-  display.setCursor(0, 0);
-
-  display.println("WORKS");
-  display.display();
+  
 
   
   
   // Setup Motor
   // will need to swap one to have consistency
   Lmotor.init(IN3_PIN, IN4_PIN, Lchannel, false);
-  if (Lmotor.move(50)) Serial.println("No error");
+  if (Lmotor.move(50)) UpdateDisplay("LWorks");
+  delay(500);
 
   Rmotor.init(IN1_PIN, IN2_PIN, Rchannel, true);
-  if (Rmotor.move(50)) Serial.println("No error");
+  if (Rmotor.move(50)) UpdateDisplay("RWorks");
+  delay(500);
+  // delay(100);
+  // Lmotor.brake();
+  // Rmotor.brake();
+  // BrakeMotors();
+  BrakeMotors();
+  UpdateDisplay("Brakes Work");
+  
 
-  delay(100000);
+  
 
   // Rmotor.init(IN1_PIN, IN2_PIN, Lchannel);
   
@@ -224,12 +250,22 @@ void setup() {
   pinMode(ENCODER_A_R, INPUT_PULLUP);
   pinMode(ENCODER_B_R, INPUT_PULLUP);
 
+  UpdateDisplay("Motor encoder pin Setup");
+  delay(500);
+
   // Setup interrupt functions 
   attachInterrupt(ENCODER_A_L, Interrupt_A_LMotor, RISING);
   attachInterrupt(ENCODER_A_R, Interrupt_A_RMotor, RISING);
 
+  UpdateDisplay("Motor Encoders Setup");
+  delay(500);
+
   // Setup Reed switch
   pinMode(REED_SWITCH_PIN, INPUT_PULLUP);
+
+  UpdateDisplay("Reed switch setup");
+  delay(500);
+  
   
 
   // get prev Sensor data
@@ -237,7 +273,15 @@ void setup() {
   Right_Distance = ((float)Right_Range_S.readRange())*1000;
   Left_Distance = ((float)Left_Range_S.readRange())*1000;
 
-  
+  for (;;) {
+    Front_Distance = ((float)Front_Range_S.readRange());
+    display.clearDisplay();
+    display.setCursor(0,0);
+    display.println(Front_Distance);
+    display.display();
+  }
+
+  delay(100000);
 
   // Setup Maze 
   Maze = createGraph();
@@ -301,8 +345,8 @@ void loop() {
       REED_DELTA_TIME = millis();
       if (REED_DELTA_TIME - REED_TRIGGERED_TIME >= REED_MAX_TIME) {
         stage = FOUND_EXIT;
-        Rmotor.brake();
-        Lmotor.brake();
+        Rmotor.move(0);
+        Lmotor.move(0);
       }
     }
   } else if (REED_TRIGGERED_TIME > 0 ) {
@@ -526,7 +570,14 @@ void DTime(unsigned long TempT, unsigned long *TotalT) {
   *TotalT = TempT;
 }
 
+void UpdateDisplay(const char c[]) {
+  display.clearDisplay();
+  display.setCursor(0, 0);
+  display.println(c);
+  display.display();
+}
+
 void BrakeMotors() {
-  Lmotor.brake();
-  Rmotor.brake();
+  Lmotor.move(0);
+  Rmotor.move(0);
 }
