@@ -16,8 +16,8 @@
 #define SCL_PIN 9
 
 // Motor
-#define IN1_PIN 12 // not accurate
-#define IN2_PIN 13 // not accurate 
+#define IN1_PIN 43 // not accurate
+#define IN2_PIN 44 // not accurate 
 #define IN3_PIN 42
 #define IN4_PIN 41
 
@@ -132,7 +132,10 @@ pVertex Current_Node;
 
 void setup() {
   // put your setup code here, to run once:
-  Serial.begin(115200);
+  // Serial1.begin(115200, SERIAL_8N1, 15, 16);
+  // Serial.swap();
+
+  // UNABLE to get Serial to work if RX and TX are used
 
   // Setup I2C
   Wire.begin(SDA_PIN, SCL_PIN);
@@ -140,8 +143,7 @@ void setup() {
 
   // Setup MPU
   if (!mpu.begin()) {
-    Serial.println("MPU not work");
-  } else {Serial.println("MPU WORKS");}
+  } else {}
   
   mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
   mpu.setGyroRange(MPU6050_RANGE_500_DEG);
@@ -164,24 +166,24 @@ void setup() {
   // turn off all but front then assign address
   digitalWrite(Shut_X_Right, LOW);
   digitalWrite(Shut_X_Left, LOW);
-  if (!Front_Range_S.begin(Front_Address)) Serial.println("Front Sensor not connected");
-  else Serial.println("FRONT SENSOR WORKS");
-  Serial.println(Front_Range_S.readRange());
+  if (!Front_Range_S.begin(Front_Address));
+  else ;
+  // Serial.println(Front_Range_S.readRange());
   digitalWrite(Shut_X_Right, HIGH);
   // Right_Range_S.begin(Right_Address);
-  if (!Right_Range_S.begin(Right_Address)) Serial.println("Right Sensor not connected");
-  else Serial.println("RIGHT SENSOR WORKS");
-  Serial.println(Right_Range_S.readRange());
+  if (!Right_Range_S.begin(Right_Address)) ;
+  // else Serial.println("RIGHT SENSOR WORKS");
+  // Serial.println(Right_Range_S.readRange());
   digitalWrite(Shut_X_Left, HIGH);
-  if (!Left_Range_S.begin(Left_Address)) Serial.println("Left Sensor not connected");
-  else Serial.println("LEFT SENSOR WORKS");
-  Serial.println(Left_Range_S.readRange());
+  if (!Left_Range_S.begin(Left_Address));
+  // else Serial.println("LEFT SENSOR WORKS");
+  // Serial.println(Left_Range_S.readRange());
 
   delay(500);
   // Setup Screen
-  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { 
-    Serial.println("SSD1306 allocation failed");
-  } else Serial.println("allocation screen success");
+  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { }
+    // Serial.println("SSD1306 allocation failed");
+  // } else Serial.println("allocation screen success");
   // check if address is correct
   display.display();
   delay(2000);
@@ -197,7 +199,10 @@ void setup() {
   
   // Setup Motor
   // will need to swap one to have consistency
-  Lmotor.init(IN3_PIN, IN4_PIN, Rchannel);
+  Lmotor.init(IN3_PIN, IN4_PIN, Lchannel, false);
+  if (Lmotor.move(50)) Serial.println("No error");
+
+  Rmotor.init(IN1_PIN, IN2_PIN, Rchannel, true);
   if (Rmotor.move(50)) Serial.println("No error");
 
   delay(100000);
