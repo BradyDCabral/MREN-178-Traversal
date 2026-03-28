@@ -118,8 +118,8 @@ float Left_Distance = 0;
 float prev_Left_Distance = 0;
 
 // SCREEN
-#define SCREEN_HEIGHT 128
-#define SCREEN_WIDTH 64
+#define SCREEN_HEIGHT 64
+#define SCREEN_WIDTH 128
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
@@ -176,14 +176,21 @@ void setup() {
   else Serial.println("LEFT SENSOR WORKS");
   Serial.println(Left_Range_S.readRange());
 
+  delay(500);
   // Setup Screen
-  display.begin(SSD1306_SWITCHCAPVCC, 0x3C); // check if address is correct
+  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { 
+    Serial.println("SSD1306 allocation failed");
+  } else Serial.println("allocation screen success");
+  // check if address is correct
+  display.display();
+  delay(2000);
   display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(WHITE);
-  display.setCursor(0, 10);
+  display.setCursor(0, 0);
 
-  
+  display.println("WORKS");
+  display.display();
 
   delay(100000);
   
