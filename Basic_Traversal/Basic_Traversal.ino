@@ -207,7 +207,7 @@ void setup() {
 
   delay(100000);
 
-  Rmotor.init(IN1_PIN, IN2_PIN, Lchannel);
+  // Rmotor.init(IN1_PIN, IN2_PIN, Lchannel);
   
 
   // Setup Motor Encoders
