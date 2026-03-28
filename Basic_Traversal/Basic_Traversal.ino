@@ -104,7 +104,7 @@ const int Shut_X_Right = 5; // unknown
 #define Right_Address 0x26
 
 Adafruit_VL53L0X Left_Range_S = Adafruit_VL53L0X();
-const int Shut_X_Left = 13; // unknown
+const int Shut_X_Left = 4; // unknown
 #define Left_Address 0x25
 
 // #define MAX_WALL_DIST 0.1 // this is a guess
@@ -172,7 +172,18 @@ void setup() {
   else Serial.println("RIGHT SENSOR WORKS");
   Serial.println(Right_Range_S.readRange());
   digitalWrite(Shut_X_Left, HIGH);
-  Left_Range_S.begin(Left_Address);
+  if (!Left_Range_S.begin(Left_Address)) Serial.println("Left Sensor not connected");
+  else Serial.println("LEFT SENSOR WORKS");
+  Serial.println(Left_Range_S.readRange());
+
+  // Setup Screen
+  display.begin(SSD1306_SWITCHCAPVCC, 0x3C); // check if address is correct
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(WHITE);
+  display.setCursor(0, 10);
+
+  
 
   delay(100000);
   
@@ -199,12 +210,7 @@ void setup() {
   Right_Distance = ((float)Right_Range_S.readRange())*1000;
   Left_Distance = ((float)Left_Range_S.readRange())*1000;
 
-  // Setup Screen
-  display.begin(SSD1306_SWITCHCAPVCC, 0x3C); // check if address is correct
-  display.clearDisplay();
-  display.setTextSize(1);
-  display.setTextColor(WHITE);
-  display.setCursor(0, 10);
+  
 
   // Setup Maze 
   Maze = createGraph();
