@@ -1,9 +1,9 @@
-#include <stdint.h>
 #ifndef MAZELOGIC_H
 #define MAZELOGIC_H
 
 #include <Arduino.h>
 #include "M_CONSTANTS.h"
+#include <stdint.h>
 
 #define GREEN 0
 #define BLUE 1

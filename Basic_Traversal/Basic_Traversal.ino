@@ -96,15 +96,15 @@ volatile bool motorDir_R = HIGH; // not sure how to treat this yet
 
 // VL53L0X range sensor variables
 Adafruit_VL53L0X Front_Range_S = Adafruit_VL53L0X();
-const int Shut_X_Front = 12; // unknown
+const int Shut_X_Front = 6; // unknown
 #define Front_Address 0x27
 
 Adafruit_VL53L0X Right_Range_S = Adafruit_VL53L0X();
-const int Shut_X_Right = 13; // unknown
+const int Shut_X_Right = 5; // unknown
 #define Right_Address 0x26
 
 Adafruit_VL53L0X Left_Range_S = Adafruit_VL53L0X();
-const int Shut_X_Left = 13; // unknown
+const int Shut_X_Left = 4; // unknown
 #define Left_Address 0x25
 
 // #define MAX_WALL_DIST 0.1 // this is a guess
@@ -118,8 +118,8 @@ float Left_Distance = 0;
 float prev_Left_Distance = 0;
 
 // SCREEN
-#define SCREEN_HEIGHT 128
-#define SCREEN_WIDTH 64
+#define SCREEN_HEIGHT 64
+#define SCREEN_WIDTH 128
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
@@ -138,25 +138,13 @@ void setup() {
 
 
   // Setup MPU
-  mpu.begin();
+  if (!mpu.begin()) {
+    Serial.println("MPU not work");
+  } else {Serial.println("MPU WORKS");}
+  
   mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
   mpu.setGyroRange(MPU6050_RANGE_500_DEG);
   mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
-  
-  // Setup Motor
-  // will need to swap one to have consistency
-  Lmotor.init(IN1_PIN, IN2_PIN, Lchannel);
-  Rmotor.init(IN3_PIN, IN4_PIN, Rchannel);
-
-  // Setup Motor Encoders
-  pinMode(ENCODER_A_L, INPUT_PULLUP);
-  pinMode(ENCODER_B_L, INPUT_PULLUP);
-  pinMode(ENCODER_A_R, INPUT_PULLUP);
-  pinMode(ENCODER_B_R, INPUT_PULLUP);
-
-  // Setup interrupt functions 
-  attachInterrupt(ENCODER_A_L, Interrupt_A_LMotor, RISING);
-  attachInterrupt(ENCODER_A_R, Interrupt_A_RMotor, RISING);
 
   // Setup Range Sensors 
   pinMode(Shut_X_Front, OUTPUT);
@@ -175,24 +163,61 @@ void setup() {
   // turn off all but front then assign address
   digitalWrite(Shut_X_Right, LOW);
   digitalWrite(Shut_X_Left, LOW);
-  Front_Range_S.begin(Front_Address);
+  if (!Front_Range_S.begin(Front_Address)) Serial.println("Front Sensor not connected");
+  else Serial.println("FRONT SENSOR WORKS");
+  Serial.println(Front_Range_S.readRange());
   digitalWrite(Shut_X_Right, HIGH);
-  Right_Range_S.begin(Right_Address);
+  // Right_Range_S.begin(Right_Address);
+  if (!Right_Range_S.begin(Right_Address)) Serial.println("Right Sensor not connected");
+  else Serial.println("RIGHT SENSOR WORKS");
+  Serial.println(Right_Range_S.readRange());
   digitalWrite(Shut_X_Left, HIGH);
-  Left_Range_S.begin(Left_Address);
+  if (!Left_Range_S.begin(Left_Address)) Serial.println("Left Sensor not connected");
+  else Serial.println("LEFT SENSOR WORKS");
+  Serial.println(Left_Range_S.readRange());
 
+  delay(500);
+  // Setup Screen
+  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { 
+    Serial.println("SSD1306 allocation failed");
+  } else Serial.println("allocation screen success");
+  // check if address is correct
+  display.display();
+  delay(2000);
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(WHITE);
+  display.setCursor(0, 0);
+
+  display.println("WORKS");
+  display.display();
+
+  delay(100000);
+  
+  // Setup Motor
+  // will need to swap one to have consistency
+  Lmotor.init(IN1_PIN, IN2_PIN, Lchannel);
+  Rmotor.init(IN3_PIN, IN4_PIN, Rchannel);
+
+  // Setup Motor Encoders
+  pinMode(ENCODER_A_L, INPUT_PULLUP);
+  pinMode(ENCODER_B_L, INPUT_PULLUP);
+  pinMode(ENCODER_A_R, INPUT_PULLUP);
+  pinMode(ENCODER_B_R, INPUT_PULLUP);
+
+  // Setup interrupt functions 
+  attachInterrupt(ENCODER_A_L, Interrupt_A_LMotor, RISING);
+  attachInterrupt(ENCODER_A_R, Interrupt_A_RMotor, RISING);
+
+  
+  
 
   // get prev Sensor data
   Front_Distance = ((float)Front_Range_S.readRange())*1000;
   Right_Distance = ((float)Right_Range_S.readRange())*1000;
   Left_Distance = ((float)Left_Range_S.readRange())*1000;
 
-  // Setup Screen
-  display.begin(SSD1306_SWITCHCAPVCC, 0x3C); // check if address is correct
-  display.clearDisplay();
-  display.setTextSize(1);
-  display.setTextColor(WHITE);
-  display.setCursor(0, 10);
+  
 
   // Setup Maze 
   Maze = createGraph();
