@@ -96,11 +96,11 @@ volatile bool motorDir_R = HIGH; // not sure how to treat this yet
 
 // VL53L0X range sensor variables
 Adafruit_VL53L0X Front_Range_S = Adafruit_VL53L0X();
-const int Shut_X_Front = 12; // unknown
+const int Shut_X_Front = 6; // unknown
 #define Front_Address 0x27
 
 Adafruit_VL53L0X Right_Range_S = Adafruit_VL53L0X();
-const int Shut_X_Right = 13; // unknown
+const int Shut_X_Right = 5; // unknown
 #define Right_Address 0x26
 
 Adafruit_VL53L0X Left_Range_S = Adafruit_VL53L0X();
@@ -138,25 +138,13 @@ void setup() {
 
 
   // Setup MPU
-  mpu.begin();
+  if (!mpu.begin()) {
+    Serial.println("MPU not work");
+  } else {Serial.println("MPU WORKS");}
+  
   mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
   mpu.setGyroRange(MPU6050_RANGE_500_DEG);
   mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
-  
-  // Setup Motor
-  // will need to swap one to have consistency
-  Lmotor.init(IN1_PIN, IN2_PIN, Lchannel);
-  Rmotor.init(IN3_PIN, IN4_PIN, Rchannel);
-
-  // Setup Motor Encoders
-  pinMode(ENCODER_A_L, INPUT_PULLUP);
-  pinMode(ENCODER_B_L, INPUT_PULLUP);
-  pinMode(ENCODER_A_R, INPUT_PULLUP);
-  pinMode(ENCODER_B_R, INPUT_PULLUP);
-
-  // Setup interrupt functions 
-  attachInterrupt(ENCODER_A_L, Interrupt_A_LMotor, RISING);
-  attachInterrupt(ENCODER_A_R, Interrupt_A_RMotor, RISING);
 
   // Setup Range Sensors 
   pinMode(Shut_X_Front, OUTPUT);
@@ -175,12 +163,36 @@ void setup() {
   // turn off all but front then assign address
   digitalWrite(Shut_X_Right, LOW);
   digitalWrite(Shut_X_Left, LOW);
-  Front_Range_S.begin(Front_Address);
+  if (!Front_Range_S.begin(Front_Address)) Serial.println("Front Sensor not connected");
+  else Serial.println("FRONT SENSOR WORKS");
+  Serial.println(Front_Range_S.readRange());
   digitalWrite(Shut_X_Right, HIGH);
-  Right_Range_S.begin(Right_Address);
+  // Right_Range_S.begin(Right_Address);
+  if (!Right_Range_S.begin(Right_Address)) Serial.println("Right Sensor not connected");
+  else Serial.println("RIGHT SENSOR WORKS");
+  Serial.println(Right_Range_S.readRange());
   digitalWrite(Shut_X_Left, HIGH);
   Left_Range_S.begin(Left_Address);
 
+  delay(100000);
+  
+  // Setup Motor
+  // will need to swap one to have consistency
+  Lmotor.init(IN1_PIN, IN2_PIN, Lchannel);
+  Rmotor.init(IN3_PIN, IN4_PIN, Rchannel);
+
+  // Setup Motor Encoders
+  pinMode(ENCODER_A_L, INPUT_PULLUP);
+  pinMode(ENCODER_B_L, INPUT_PULLUP);
+  pinMode(ENCODER_A_R, INPUT_PULLUP);
+  pinMode(ENCODER_B_R, INPUT_PULLUP);
+
+  // Setup interrupt functions 
+  attachInterrupt(ENCODER_A_L, Interrupt_A_LMotor, RISING);
+  attachInterrupt(ENCODER_A_R, Interrupt_A_RMotor, RISING);
+
+  
+  
 
   // get prev Sensor data
   Front_Distance = ((float)Front_Range_S.readRange())*1000;
