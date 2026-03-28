@@ -124,6 +124,14 @@ float prev_Left_Distance = 0;
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
+// Reed Switch
+#define REED_SWITCH_PIN 12
+#define REED_MAX_TIME 300
+// no magnet closed
+// magnet open
+unsigned long REED_TRIGGERED_TIME = 0;
+unsigned long REED_DELTA_TIME = 0;
+
 // MAZE LOGIC CRAP
 pGraph Maze;
 pVertex Current_Node;
@@ -220,7 +228,8 @@ void setup() {
   attachInterrupt(ENCODER_A_L, Interrupt_A_LMotor, RISING);
   attachInterrupt(ENCODER_A_R, Interrupt_A_RMotor, RISING);
 
-  
+  // Setup Reed switch
+  pinMode(REED_SWITCH_PIN, INPUT_PULLUP);
   
 
   // get prev Sensor data
@@ -285,6 +294,21 @@ void loop() {
   // https://github.com/adafruit/Adafruit_Motor_Shield_V2_Library/blob/master/examples/encoderMotorRPM/encoderMotorRPM.ino
   // then speeds will be used to determine distance travelled which can give approximates to positions
   
+  // REED Switch detector cant remember what indicates trigger
+  if (digitalRead(REED_SWITCH_PIN) == LOW) {
+    if (REED_TRIGGERED_TIME == 0) REED_TRIGGERED_TIME == millis();
+    else {
+      REED_DELTA_TIME = millis();
+      if (REED_DELTA_TIME - REED_TRIGGERED_TIME >= REED_MAX_TIME) {
+        stage = FOUND_EXIT;
+        Rmotor.brake();
+        Lmotor.brake();
+      }
+    }
+  } else if (REED_TRIGGERED_TIME > 0 ) {
+    REED_TRIGGERED_TIME = 0;
+  }
+
   // temp values
   float error;
   float error_Angle;
