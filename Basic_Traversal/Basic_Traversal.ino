@@ -269,15 +269,15 @@ void setup() {
   
 
   // get prev Sensor data
-  Front_Distance = ((float)Front_Range_S.readRange())*1000;
-  Right_Distance = ((float)Right_Range_S.readRange())*1000;
-  Left_Distance = ((float)Left_Range_S.readRange())*1000;
+  Front_Distance = ((float)Front_Range_S.readRange())/1000;
+  Right_Distance = ((float)Right_Range_S.readRange())/1000;
+  Left_Distance = ((float)Left_Range_S.readRange())/1000;
 
   for (;;) {
-    Front_Distance = ((float)Front_Range_S.readRange());
+    Right_Distance = ((float)Right_Range_S.readRange())/1000;
     display.clearDisplay();
     display.setCursor(0,0);
-    display.println(Front_Distance);
+    display.println(Right_Distance);
     display.display();
   }
 
@@ -321,17 +321,17 @@ void loop() {
 
   // start with front data
   prev_Front_Distance = Front_Distance;
-  Front_Distance = ((float)Front_Range_S.readRange())*1000;
+  Front_Distance = ((float)Front_Range_S.readRange())/1000;
   uint8_t Front_Correct = Front_Range_S.readRangeStatus();
 
   // start with Right data
   prev_Right_Distance = Right_Distance;
-  Right_Distance = ((float)Right_Range_S.readRange())*1000;
+  Right_Distance = ((float)Right_Range_S.readRange())/1000;
   uint8_t Right_Correct = Right_Range_S.readRangeStatus();
 
   // start with Left data
   prev_Left_Distance = Left_Distance;
-  Left_Distance = ((float)Left_Range_S.readRange())*1000;
+  Left_Distance = ((float)Left_Range_S.readRange())/1000;
   uint8_t Left_Correct = Left_Range_S.readRangeStatus();
 
   // Motor wheels will be updated using an interrupt function shown in 
