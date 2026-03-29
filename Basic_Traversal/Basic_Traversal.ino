@@ -606,6 +606,7 @@ void loop() {
     case FOUND_EXIT:
       /* STOP EVERYTHING CONGRATS MAYBE DO CELEBRATORY MESSAGE
       */
+      //Yipee yipee yipee
       display.clearDisplay();
       display.println("FUCK YEAH");
       display.display();
