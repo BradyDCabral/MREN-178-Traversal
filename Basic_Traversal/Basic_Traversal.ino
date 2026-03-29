@@ -9,6 +9,20 @@
 #include <Wire.h>
 #include <Cdrv8833.h>
 #include "M_CONSTANTS.h"
+#include <cmath>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
+// MPU-integrated zR is radians (gyro z is rad/s); maze / displays use degrees via M_zR
+static float yaw_rad_to_deg_0_360(float rad) {
+  float d = rad * (180.0f / static_cast<float>(M_PI));
+  d = fmodf(d, 360.0f);
+  if (d < 0.0f)
+    d += 360.0f;
+  return d;
+}
 
 // CONSTANTS
 
@@ -278,7 +292,7 @@ void setup() {
   Right_Distance = ((float)Right_Range_S.readRange())/1000;
   Left_Distance = ((float)Left_Range_S.readRange())/1000;
 
-    
+
 
   Maze = createGraph();
   if (Maze) {
@@ -343,7 +357,8 @@ void loop() {
   
   // REED Switch detector cant remember what indicates trigger
   if (digitalRead(REED_SWITCH_PIN) == LOW) {
-    if (REED_TRIGGERED_TIME == 0) REED_TRIGGERED_TIME == millis();
+    if (REED_TRIGGERED_TIME == 0)
+      REED_TRIGGERED_TIME = millis();
     else {
       REED_DELTA_TIME = millis();
       if (REED_DELTA_TIME - REED_TRIGGERED_TIME >= REED_MAX_TIME) {
@@ -362,7 +377,7 @@ void loop() {
   float error_X;
   float error_Y;
 
-  M_zR = zR; // change if odometry is more accurate 
+  M_zR = yaw_rad_to_deg_0_360(zR);
   switch (stage) {
     case START:
       // evaluates if at a proper spawn ie. walls on both sides
@@ -391,6 +406,7 @@ void loop() {
       } /* Entering Node */ else if (Left_Distance >= MAX_WALL_DIST || Right_Distance >= MAX_WALL_DIST) {
         // not sure what prep must be done but switch to next stage
         BrakeMotors();
+        Target_Z = ReturnProperAngleFromIndex(ReturnProperIndex(M_zR));
         stage = ENTER_NODE_CENTRE;
         display.clearDisplay();
         display.println("ENTERING NODE");
@@ -423,7 +439,7 @@ void loop() {
       if (Adjusting_Angle) { // degrees
         // might update Start_phs_X & Y after Angle reached
         error_Angle = fmod((Target_Z - M_zR + 360), 360);
-        if ((abs(error_Angle) >= CENTRE_ANGLE_GIVE)){
+        if ((fabsf(error_Angle) >= CENTRE_ANGLE_GIVE)){
           if (error_Angle >= 0 && error_Angle <= 180 && CW != 1) { // CW turn
             // Turn LeftWhl Back, Turn RghtWhl FRWRD
             CW = 1;
@@ -512,7 +528,7 @@ void loop() {
       * NEXT: EXIT_NODE_CENTRE
       */
       error_Angle = fmod((Target_Z - M_zR + 360), 360);
-      if ((abs(error_Angle) >= CENTRE_ANGLE_GIVE)){
+      if ((fabsf(error_Angle) >= CENTRE_ANGLE_GIVE)){
         if (error_Angle >= 0 && error_Angle <= 180 && CW != 1) { // CW turn
           // Turn LeftWhl Back, Turn RghtWhl FRWRD
           CW = 1;
