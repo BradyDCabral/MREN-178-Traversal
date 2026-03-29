@@ -1,3 +1,5 @@
+//Farmer was replaed is suh a good subreddit for astar implementations 
+
 #include "AStar.h"
 #include <string.h>
 

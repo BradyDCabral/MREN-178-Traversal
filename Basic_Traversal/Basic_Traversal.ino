@@ -125,15 +125,15 @@ volatile bool motorDir_R = HIGH; // not sure how to treat this yet
 
 // VL53L0X range sensor variables
 Adafruit_VL53L0X Front_Range_S = Adafruit_VL53L0X();
-const int Shut_X_Front = 6; // unknown
+const int Shut_X_Front = 11; // unknown
 #define Front_Address 0x27
 
 Adafruit_VL53L0X Right_Range_S = Adafruit_VL53L0X();
-const int Shut_X_Right = 5; // unknown
+const int Shut_X_Right = 16; // unknown
 #define Right_Address 0x26
 
 Adafruit_VL53L0X Left_Range_S = Adafruit_VL53L0X();
-const int Shut_X_Left = 4; // unknown
+const int Shut_X_Left = 46; // unknown
 #define Left_Address 0x25
 
 // #define MAX_WALL_DIST 0.1 // this is a guess
