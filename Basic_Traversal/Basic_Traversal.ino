@@ -4,6 +4,9 @@
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_VL53L0X.h>
+#ifndef VL53L0X_ERROR_NONE
+#define VL53L0X_ERROR_NONE 0 /* range valid (Adafruit VL53L0X) */
+#endif
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <Wire.h>
@@ -22,6 +25,17 @@ static float yaw_rad_to_deg_0_360(float rad) {
   if (d < 0.0f)
     d += 360.0f;
   return d;
+}
+
+// Shortest signed turn from current_deg toward target_deg, degrees in [-180, 180]
+static float angle_error_deg_shortest(float target_deg, float current_deg) {
+  float e = target_deg - current_deg;
+  e = fmodf(e, 360.0f);
+  if (e > 180.0f)
+    e -= 360.0f;
+  if (e < -180.0f)
+    e += 360.0f;
+  return e;
 }
 
 // CONSTANTS
@@ -287,10 +301,22 @@ void setup() {
   
   
 
-  // get prev Sensor data
-  Front_Distance = ((float)Front_Range_S.readRange())/1000;
-  Right_Distance = ((float)Right_Range_S.readRange())/1000;
-  Left_Distance = ((float)Left_Range_S.readRange())/1000;
+  // Initial range (m); only use good samples
+  {
+    uint16_t mm = Front_Range_S.readRange();
+    if (Front_Range_S.readRangeStatus() == VL53L0X_ERROR_NONE)
+      Front_Distance = (float)mm / 1000.0f;
+  }
+  {
+    uint16_t mm = Right_Range_S.readRange();
+    if (Right_Range_S.readRangeStatus() == VL53L0X_ERROR_NONE)
+      Right_Distance = (float)mm / 1000.0f;
+  }
+  {
+    uint16_t mm = Left_Range_S.readRange();
+    if (Left_Range_S.readRangeStatus() == VL53L0X_ERROR_NONE)
+      Left_Distance = (float)mm / 1000.0f;
+  }
 
 
 
@@ -325,31 +351,36 @@ void loop() {
   // updates YAW using mpu
   UpdateYAW(g.gyro.z, &zR, &omegaZ, Delta_Millis);
 
-  // Updates position data using wheel encoders 
-  // IMPORTANT motorDir_R is unsure what high means but will be assumed that high means the bot will move forward
-  // if not the case then must swap something around 
-  // also assumed both wheels going same direction if not the case don't use this function so there should be some check if the case
-  // probably have it so this only updates in certain cases so this function might not be called in this spot in future
-  // TLDR: might be moved to corresponding case
-  Wheel_Tracking(RPS_L, RPS_R, &zR_W, &x_Whl, &y_Whl, motorDir_R, Delta_Millis);
+  // Wheel odometry: each encoder channel sets forward/reverse for that side (differential turn = opposite dirs OK)
+  Wheel_Tracking(RPS_L, RPS_R, &zR_W, &x_Whl, &y_Whl, motorDir_L, motorDir_R, Delta_Millis);
 
   // Updates Range Sensors
   // BLAH BLAH BLAH
 
-  // start with front data
+  // Range: keep previous mm value if this sample failed (VL53L0X range status 0 = valid)
   prev_Front_Distance = Front_Distance;
-  Front_Distance = ((float)Front_Range_S.readRange())/1000;
-  uint8_t Front_Correct = Front_Range_S.readRangeStatus();
+  {
+    uint16_t mm = Front_Range_S.readRange();
+    uint8_t st = Front_Range_S.readRangeStatus();
+    if (st == VL53L0X_ERROR_NONE)
+      Front_Distance = (float)mm / 1000.0f;
+  }
 
-  // start with Right data
   prev_Right_Distance = Right_Distance;
-  Right_Distance = ((float)Right_Range_S.readRange())/1000;
-  uint8_t Right_Correct = Right_Range_S.readRangeStatus();
+  {
+    uint16_t mm = Right_Range_S.readRange();
+    uint8_t st = Right_Range_S.readRangeStatus();
+    if (st == VL53L0X_ERROR_NONE)
+      Right_Distance = (float)mm / 1000.0f;
+  }
 
-  // start with Left data
   prev_Left_Distance = Left_Distance;
-  Left_Distance = ((float)Left_Range_S.readRange())/1000;
-  uint8_t Left_Correct = Left_Range_S.readRangeStatus();
+  {
+    uint16_t mm = Left_Range_S.readRange();
+    uint8_t st = Left_Range_S.readRangeStatus();
+    if (st == VL53L0X_ERROR_NONE)
+      Left_Distance = (float)mm / 1000.0f;
+  }
 
   // Motor wheels will be updated using an interrupt function shown in 
   // https://github.com/adafruit/Adafruit_Motor_Shield_V2_Library/blob/master/examples/encoderMotorRPM/encoderMotorRPM.ino
@@ -438,16 +469,16 @@ void loop() {
       // if true adjust angle to be close to target angle 
       if (Adjusting_Angle) { // degrees
         // might update Start_phs_X & Y after Angle reached
-        error_Angle = fmod((Target_Z - M_zR + 360), 360);
+        error_Angle = angle_error_deg_shortest(Target_Z, M_zR);
         if ((fabsf(error_Angle) >= CENTRE_ANGLE_GIVE)){
-          if (error_Angle >= 0 && error_Angle <= 180 && CW != 1) { // CW turn
+          if (error_Angle > 0 && CW != 1) {
             // Turn LeftWhl Back, Turn RghtWhl FRWRD
             CW = 1;
             BrakeMotors();
             delay(MOTOR_DELAY);
             Lmotor.move(-MOTOR_TURN_POWER);
             Rmotor.move(MOTOR_TURN_POWER);
-          } else if (error_Angle > 180 && error_Angle < 360 && CW != 2){
+          } else if (error_Angle < 0 && CW != 2){
             // Turn LeftWhl FRWD, Turn RghtWhl BCK
             CW = 2;
             BrakeMotors();
@@ -527,16 +558,16 @@ void loop() {
       * rotate wheels in opposite directions to try to stay at centre when rotating
       * NEXT: EXIT_NODE_CENTRE
       */
-      error_Angle = fmod((Target_Z - M_zR + 360), 360);
+      error_Angle = angle_error_deg_shortest(Target_Z, M_zR);
       if ((fabsf(error_Angle) >= CENTRE_ANGLE_GIVE)){
-        if (error_Angle >= 0 && error_Angle <= 180 && CW != 1) { // CW turn
+        if (error_Angle > 0 && CW != 1) {
           // Turn LeftWhl Back, Turn RghtWhl FRWRD
           CW = 1;
           BrakeMotors();
           delay(MOTOR_DELAY);
           Lmotor.move(-MOTOR_TURN_POWER);
           Rmotor.move(MOTOR_TURN_POWER);
-        } else if (error_Angle > 180 && error_Angle < 360 && CW != 2){
+        } else if (error_Angle < 0 && CW != 2){
           // Turn LeftWhl FRWD, Turn RghtWhl BCK
           CW = 2;
           BrakeMotors();

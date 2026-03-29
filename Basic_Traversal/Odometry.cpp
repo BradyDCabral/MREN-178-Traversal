@@ -15,16 +15,16 @@ int UpdateYAW(float Gz, float *zR, float *oR, float Dt) {
   return SUCCESS;
 }
 
-int Wheel_Tracking(float rpsL, float rpsR, float *theta, float *x, float *y, bool frwrd, float Dt) {
+int Wheel_Tracking(float rpsL, float rpsR, float *theta, float *x, float *y, bool frwrdL, bool frwrdR, float Dt) {
   if (!theta || !x || !y || Dt <= 0.0f)
     return FAIL;
 
   float d_l = rpsL * Dt * 2.0f * (float)M_PI * WHEEL_RADIUS;
   float d_r = rpsR * Dt * 2.0f * (float)M_PI * WHEEL_RADIUS;
-  if (!frwrd) {
+  if (!frwrdL)
     d_l = -d_l;
+  if (!frwrdR)
     d_r = -d_r;
-  }
 
   float track = Sl + Sr;
   if (track <= 0.0f)
