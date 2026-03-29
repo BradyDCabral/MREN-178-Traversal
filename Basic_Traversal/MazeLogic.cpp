@@ -95,3 +95,13 @@ int ReturnProperIndex(float angle) {
 float ReturnProperAngleFromIndex(int ind) {
   return ((float)(ind % 4)) * 90;
 }
+
+int NeighborIndexOf(pVertex from, pVertex to) {
+  if (!from || !to)
+    return -1;
+  for (int i = 0; i < 4; i++) {
+    if (from->Neighbours[i] == to)
+      return i;
+  }
+  return -1;
+}

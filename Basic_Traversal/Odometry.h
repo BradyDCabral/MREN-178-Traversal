@@ -37,7 +37,8 @@ typedef enum stage {
 int UpdateYAW(float Gz, float *zR, float *oR, float Dt);
 
 
-// Determine angle and local position using wheel 
+// Differential-drive odometry: *theta is radians (robot heading in world XY); *x,*y meters.
+// Track width = Sl + Sr. Arc length = rps * 2*pi*r * dt.
 int Wheel_Tracking(float rpsL, float rpsR, float *theta, float *x, float *y, bool frwrd, float Dt);
 
 #endif

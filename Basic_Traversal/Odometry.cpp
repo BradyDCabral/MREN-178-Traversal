@@ -1,73 +1,42 @@
-#include <math.h>
-#include <numbers>
+#include <cmath>
 #include "Odometry.h"
 
-
-
-
-
-
-
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 int UpdateYAW(float Gz, float *zR, float *oR, float Dt) {
-  // if stationary just dont update YAW
   Gz += ((std::abs)(Gz) > rZ_DEADZONE ? 0 : DRIFT_rZ);
-  float dz = (*oR + Gz)/2 * Dt;
+  float dz = (*oR + Gz) / 2.0f * Dt;
 
   *zR += (dz > -rZ_DEADZONE && dz < rZ_DEADZONE ? 0 : dz);
-  
+
   *oR = Gz;
   return SUCCESS;
-
 }
 
 int Wheel_Tracking(float rpsL, float rpsR, float *theta, float *x, float *y, bool frwrd, float Dt) {
-  // fill out later
+  if (!theta || !x || !y || Dt <= 0.0f)
+    return FAIL;
 
-  float D_L = rpsL * Dt * 2 * (std::numbers::pi) * WHEEL_RADIUS;
-  float D_R = rpsR * Dt * 2 * (std::numbers::pi) * WHEEL_RADIUS;
-
-  // update prev values encoder do that manually
-
-  // get delta theta 
-  float D_theta = (D_L-D_R)/(Sl + Sr);
-
-  float D_Lengths = D_L - D_R;
-
-  float theta_m;
-  float temp_y;
-  if ((D_Lengths < Equal_Threshold) && (D_Lengths > -Equal_Threshold)) {
-    temp_y += D_R;
-    theta_m = *theta;
-  } else {
-    
-
-    // get local y offset
-    temp_y = 2 * sin((double)(D_theta/2)) * (D_R/D_theta + Sr);
-
-    theta_m = *theta + (D_theta/2);
-
-   
-
-
-
-    // update absolute theta might need to check sign
-    *theta += D_theta;
+  float d_l = rpsL * Dt * 2.0f * (float)M_PI * WHEEL_RADIUS;
+  float d_r = rpsR * Dt * 2.0f * (float)M_PI * WHEEL_RADIUS;
+  if (!frwrd) {
+    d_l = -d_l;
+    d_r = -d_r;
   }
 
-   // to polar 
-    float p_r = temp_y;
-    float p_theta = (std::numbers::pi)/2;
+  float track = Sl + Sr;
+  if (track <= 0.0f)
+    return FAIL;
 
-    // rotate polar
-    p_theta -= theta_m;
+  float d_theta = (d_l - d_r) / track;
+  float dist = 0.5f * (d_l + d_r);
+  float th = *theta;
+  float th_mid = th + 0.5f * d_theta;
 
-    // to cartestian
-    float temp_x = p_r * cos((double)p_theta);
-    temp_y = p_r * sin((double)p_theta);
-
-    *x += temp_x;
-    *y += temp_y;
-
+  *x += dist * cosf(th_mid);
+  *y += dist * sinf(th_mid);
+  *theta += d_theta;
   return SUCCESS;
 }

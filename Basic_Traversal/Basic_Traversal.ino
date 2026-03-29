@@ -1,5 +1,6 @@
 #include "Odometry.h"
 #include "MazeLogic.h"
+#include "AStar.h"
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_VL53L0X.h>
@@ -44,8 +45,7 @@ uint8_t CW = 0;
 #define CENTRE_DIST_GIVE 0.005
 #define CENTRE_ANGLE_GIVE 1 // degree
 
-// WHEEL Shit
-// Yaw from wheel Odometry
+// Wheel odometry heading (radians), used by Wheel_Tracking — not the same units as MPU zR (degrees)
 float zR_W = 0;
 // local x and y positions
 float x_Whl = 0;
@@ -124,9 +124,14 @@ float prev_Left_Distance = 0;
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
-// MAZE LOGIC CRAP
-pGraph Maze;
-pVertex Current_Node;
+// Maze graph + planner
+pGraph Maze = nullptr;
+pVertex Current_Node = nullptr;
+pVertex Goal_Node = nullptr;
+pVertex Planned_Next_Node = nullptr;
+int vertex_count = 0;
+pVertex AStar_path[MAX_NODES];
+int AStar_path_len = 0;
 
 
 
@@ -205,7 +210,7 @@ void setup() {
   Rmotor.init(IN1_PIN, IN2_PIN, Rchannel, true);
   if (Rmotor.move(50)) Serial.println("No error");
 
-  delay(100000);
+  delay(2000);
 
   // Rmotor.init(IN1_PIN, IN2_PIN, Lchannel);
   
@@ -230,9 +235,15 @@ void setup() {
 
   
 
-  // Setup Maze 
   Maze = createGraph();
-
+  if (Maze) {
+    vertex_count = 0;
+    if (CreateEmptyVertex(&Maze->Root, &vertex_count) == 0 && Maze->Root) {
+      Current_Node = Maze->Root;
+      Maze->Root->row = 0;
+      Maze->Root->col = 0;
+    }
+  }
 
   // not sure why this is here
   delay(100);
@@ -398,10 +409,42 @@ void loop() {
       
       break;
     case DETERMINE_NEXT_STEP:
-      /* Use graph or some other method based on if searching or not to determine next angle to move
-      * ROTATE_TO_DESTINATION
-      */
+      if (Current_Node) {
+        CreateVertex(Current_Node, M_zR, Left_Distance, Front_Distance, Right_Distance, &vertex_count);
+        Planned_Next_Node = nullptr;
+        AStar_path_len = 0;
 
+        if (Goal_Node &&
+            AStar_Search(Current_Node, Goal_Node, AStar_heuristic_zero,
+                         AStar_path, MAX_NODES, &AStar_path_len) == 0 &&
+            AStar_path_len >= 2) {
+          int dir = NeighborIndexOf(Current_Node, AStar_path[1]);
+          if (dir >= 0) {
+            Target_Z = ReturnProperAngleFromIndex(dir);
+            Planned_Next_Node = AStar_path[1];
+            stage = ROTATE_TO_DESTINATION;
+            display.clearDisplay();
+            display.println("ASTAR");
+            display.display();
+            break;
+          }
+        }
+
+        int fidx = ReturnProperIndex(M_zR);
+        if (Front_Distance >= MAX_WALL_DIST) {
+          Target_Z = ReturnProperAngleFromIndex(fidx);
+        } else if (Left_Distance >= MAX_WALL_DIST) {
+          Target_Z = ReturnProperAngleFromIndex((fidx + 3) % 4);
+        } else if (Right_Distance >= MAX_WALL_DIST) {
+          Target_Z = ReturnProperAngleFromIndex((fidx + 1) % 4);
+        } else {
+          Target_Z = M_zR;
+        }
+        stage = ROTATE_TO_DESTINATION;
+        display.clearDisplay();
+        display.println("EXPLORE");
+        display.display();
+      }
       break;
     case ROTATE_TO_DESTINATION:
       /* Use desired YAW and approximate global YAW to determine how much wheels should rotate 
@@ -443,6 +486,10 @@ void loop() {
       if (Left_Distance < MAX_WALL_DIST && Right_Distance < MAX_WALL_DIST) {
         BrakeMotors();
         delay(MOTOR_DELAY);
+        if (Planned_Next_Node) {
+          Current_Node = Planned_Next_Node;
+          Planned_Next_Node = nullptr;
+        }
         stage = FOLLOW_HALLWAY;
         display.clearDisplay();
         display.println("FOLLOW HALLWAY");

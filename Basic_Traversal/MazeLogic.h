@@ -73,6 +73,9 @@ int ReturnProperIndex(float angle);
 // reverse of above function
 float ReturnProperAngleFromIndex(int ind);
 
+// Neighbour slot of `to` as seen from `from`, or -1 if not adjacent
+int NeighborIndexOf(pVertex from, pVertex to);
+
 
 
 
