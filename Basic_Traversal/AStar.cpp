@@ -160,6 +160,7 @@ int AStar_Search(pVertex start, pVertex goal, AStar_Heuristic h,
     outPath[i] = rev[n - 1 - i];
   // Path length payload for caller.
   *outLen = n;
-  // Zero means success; yes, i think this is correct
   return 0;
+  // Zero means success; yes, i think this is correct 
+  // ooh 
 }

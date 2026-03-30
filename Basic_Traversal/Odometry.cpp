@@ -6,7 +6,9 @@
 #endif
 
 int UpdateYAW(float Gz, float *zR, float *oR, float Dt) {
-  Gz += ((std::abs)(Gz) > rZ_DEADZONE ? 0 : DRIFT_rZ);
+  // FIX #1: Ternary was inverted — drift correction must apply when signal is
+  // BELOW the deadzone (stationary noise), not above (genuine rotation).
+  Gz += ((std::abs)(Gz) < rZ_DEADZONE ? DRIFT_rZ : 0);
   float dz = (*oR + Gz) / 2.0f * Dt;
 
   *zR += (dz > -rZ_DEADZONE && dz < rZ_DEADZONE ? 0 : dz);

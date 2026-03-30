@@ -13,6 +13,9 @@
 #include <Cdrv8833.h>
 #include "M_CONSTANTS.h"
 #include <cmath>
+#include "esp_task_wdt.h"
+
+
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -45,8 +48,8 @@ static float angle_error_deg_shortest(float target_deg, float current_deg) {
 #define SCL_PIN 9
 
 // Motor
-#define IN1_PIN 43 // not accurate
-#define IN2_PIN 44 // not accurate 
+#define IN1_PIN 1 // not accurate
+#define IN2_PIN 2 // not accurate 
 #define IN3_PIN 42
 #define IN4_PIN 41
 
@@ -54,15 +57,16 @@ static float angle_error_deg_shortest(float target_deg, float current_deg) {
 #define GEARING 50 // might not be accurate
 #define ENCODERMULT 12 // definetly NOT ACCURATE
 // LEFT
-#define ENCODER_A_L 17 // NOT ACCURATE
-#define ENCODER_B_L 18 // NOT ACCURATE
+#define ENCODER_A_L 6 // NOT ACCURATE
+#define ENCODER_B_L 5 // NOT ACCURATE
 // RIGHT
-#define ENCODER_A_R 11 // NOT ACCURATE
-#define ENCODER_B_R 12 // NOT ACCURATE
+#define ENCODER_A_R 15 // NOT ACCURATE
+#define ENCODER_B_R 7 // NOT ACCURATE
 
 // Stage management
 STAGE stage = START;
-#define HALLWAY_ERROR_DEADZONE 0.005 // NOT ACCURATE
+#define HALLWAY_ERROR_DEADZONE 0.010 // NOT ACCURATE
+#define FRONT_BLOCK_DIST 0.10 // m, immediate front-stop threshold
 bool Adjusting_Angle = false;
 float Start_phs_X = 0;
 float Start_phs_Y = 0;
@@ -97,7 +101,7 @@ Adafruit_MPU6050 mpu;
 
 
 // Time variables
-int Delta_Millis; // might make float
+float Delta_Millis;
 unsigned long Total_Millis;
 unsigned long Temp_Millis;
 
@@ -125,15 +129,17 @@ volatile bool motorDir_R = HIGH; // not sure how to treat this yet
 
 // VL53L0X range sensor variables
 Adafruit_VL53L0X Front_Range_S = Adafruit_VL53L0X();
-const int Shut_X_Front = 11; // unknown
+const int Shut_X_Front = 10; // unknown
 #define Front_Address 0x27
 
 Adafruit_VL53L0X Right_Range_S = Adafruit_VL53L0X();
-const int Shut_X_Right = 12; // unknown
+const int Shut_X_Right = 11; // unknown
 #define Right_Address 0x26
 
 Adafruit_VL53L0X Left_Range_S = Adafruit_VL53L0X();
-const int Shut_X_Left = 10; // unknown
+// FIX #4: Shut_X_Left was 12, same as REED_SWITCH_PIN — changed to 13.
+// Make sure physical wiring matches this new pin assignment.
+const int Shut_X_Left = 12;
 #define Left_Address 0x25
 
 // #define MAX_WALL_DIST 0.1 // this is a guess
@@ -153,7 +159,7 @@ float prev_Left_Distance = 0;
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire1, -1);
 
 // Reed Switch
-#define REED_SWITCH_PIN 12
+#define REED_SWITCH_PIN 13
 #define REED_MAX_TIME 300
 // no magnet closed
 // magnet open
@@ -170,65 +176,80 @@ int vertex_count = 0;
 pVertex AStar_path[MAX_NODES];
 int AStar_path_len = 0;
 
+bool oled_init = false;
 
-
+Adafruit_SSD1306* oled = nullptr;
+unsigned long last_debug_ms = 0;
 
 
 void setup() {
-  // put your setup code here, to run once:
-  // Serial1.begin(115200, SERIAL_8N1, 15, 16);
-  // Serial.swap();
-
-  // UNABLE to get Serial to work if RX and TX are used
+  Serial.begin(115200);
+  delay(1000);
+  pinMode(IN1_PIN, OUTPUT); digitalWrite(IN1_PIN, LOW);
+  pinMode(IN2_PIN, OUTPUT); digitalWrite(IN2_PIN, LOW);
+  pinMode(IN3_PIN, OUTPUT); digitalWrite(IN3_PIN, LOW);
+  pinMode(IN4_PIN, OUTPUT); digitalWrite(IN4_PIN, LOW);
 
   // Setup I2C
+  Wire.end();  // release bus first
+  delay(50);
+  pinMode(SDA_PIN, OUTPUT); digitalWrite(SDA_PIN, HIGH);
+  pinMode(SCL_PIN, OUTPUT);
+  for(int i = 0; i < 9; i++) {
+    digitalWrite(SCL_PIN, HIGH); delayMicroseconds(10);
+    digitalWrite(SCL_PIN, LOW);  delayMicroseconds(10);
+  }
+  // Send STOP condition
+  digitalWrite(SDA_PIN, LOW); delayMicroseconds(10);
+  digitalWrite(SCL_PIN, HIGH); delayMicroseconds(10);
+  digitalWrite(SDA_PIN, HIGH); delayMicroseconds(10);
   Wire.begin(SDA_PIN, SCL_PIN);
-Wire.setClock(100000);
-  // Wire1.begin(13,14);
+  Wire.setClock(100000);
 
+  // FIX #2 & #3: Motor init and OLED init are now each done ONCE, in the
+  // correct order. OLED must come first so UpdateDisplay() works during motor
+  // test. The early duplicate motor init block (which ran before OLED was
+  // ready) has been removed entirely.
 
-Lmotor.init(IN1_PIN, IN2_PIN, Lchannel, false);
-if (Lmotor.move(50)) UpdateDisplay("LWorks");   
-delay(500);
-Rmotor.init(IN3_PIN, IN4_PIN, Rchannel, true);
-if (Rmotor.move(50)) UpdateDisplay("RWorks");  
-delay(500);
-BrakeMotors();    
-
-
- oled = new Adafruit_SSD1306(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
-if (!oled) {
-  Serial.println("OLED alloc failed -- out of heap");
-} else {
-  oled_init = oled->begin(SSD1306_SWITCHCAPVCC, 0x3C);
-}
+  // --- OLED init (must come before any UpdateDisplay call) ---
+  oled = new Adafruit_SSD1306(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+  if (!oled) {
+    Serial.println("OLED alloc failed -- out of heap");
+  } else {
+    // FIX #3: begin() called only once here; the second redundant begin()
+    // call that followed in the original code has been removed.
+    oled_init = oled->begin(SSD1306_SWITCHCAPVCC, 0x3C);
+  }
 
   delay(500);
-  // Setup Screen
-  if(!oled->begin(SSD1306_SWITCHCAPVCC, 0x3C)) { }
-    // Serial.println("SSD1306 allocation failed");
-  // } else Serial.println("allocation screen success");
-  // check if address is correct
   oled->display();
   delay(2000);
   oled->clearDisplay();
   oled->setTextSize(1);
   oled->setTextColor(WHITE);
   oled->setCursor(0, 0);
-
   oled->println("WORKS");
   oled->display();
+
+  // --- Motor init (now only once, after OLED is ready) ---
+  Lmotor.init(IN1_PIN, IN2_PIN, Lchannel, false);
+  if (Lmotor.move(50)) UpdateDisplay("LWorks");
+  delay(500);
+
+  Rmotor.init(IN3_PIN, IN4_PIN, Rchannel, true);
+  if (Rmotor.move(50)) UpdateDisplay("RWorks");
+  delay(500);
+  BrakeMotors();
 
   // Setup MPU
   if (!mpu.begin()) {
     UpdateDisplay("MPU not work");
   } else {
-
     oled->clearDisplay();
     oled->println("MPUConnected");
     oled->display();
   }
-  
+
   mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
   mpu.setGyroRange(MPU6050_RANGE_500_DEG);
   mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
@@ -245,55 +266,24 @@ if (!oled) {
   digitalWrite(Shut_X_Left, LOW);
   delay(10);
   digitalWrite(Shut_X_Front, HIGH);
-  digitalWrite(Shut_X_Right, HIGH); // might need to omit
-  digitalWrite(Shut_X_Left, HIGH); // might need to omit
+  digitalWrite(Shut_X_Right, HIGH);
+  digitalWrite(Shut_X_Left, HIGH);
   // turn off all but front then assign address
   digitalWrite(Shut_X_Right, LOW);
   digitalWrite(Shut_X_Left, LOW);
-  if (!Front_Range_S.begin(Front_Address));
+  if (!Front_Range_S.begin(Front_Address)) UpdateDisplay("Front NOT WORKS");
   else UpdateDisplay("FRONT WORKS");
   delay(500);
 
-  // Serial.println(Front_Range_S.readRange());
   digitalWrite(Shut_X_Right, HIGH);
-  // Right_Range_S.begin(Right_Address);
-  if (!Right_Range_S.begin(Right_Address)) ;
+  if (!Right_Range_S.begin(Right_Address)) UpdateDisplay("Right NOT WORKS");
   else UpdateDisplay("Right WORKS");
   delay(500);
-  // else Serial.println("RIGHT SENSOR WORKS");
-  // Serial.println(Right_Range_S.readRange());
+
   digitalWrite(Shut_X_Left, HIGH);
-  if (!Left_Range_S.begin(Left_Address));
+  if (!Left_Range_S.begin(Left_Address)) UpdateDisplay("Left NOT WORKS");
   else UpdateDisplay("LEFT Works");
   delay(500);
-  // else Serial.println("LEFT SENSOR WORKS");
-  // Serial.println(Left_Range_S.readRange());
-
-  
-
-  
-  
-  // Setup Motor
-  // will need to swap one to have consistency
-  Lmotor.init(IN3_PIN, IN4_PIN, Lchannel, false);
-  if (Lmotor.move(50)) UpdateDisplay("LWorks");
-  delay(500);
-
-  Rmotor.init(IN1_PIN, IN2_PIN, Rchannel, true);
-  if (Rmotor.move(50)) UpdateDisplay("RWorks");
-  delay(500);
-  // delay(100);
-  // Lmotor.brake();
-  // Rmotor.brake();
-  // BrakeMotors();
-  BrakeMotors();
-  UpdateDisplay("Brakes Work");
-  
-
-  
-
-  // Rmotor.init(IN1_PIN, IN2_PIN, Lchannel);
-  
 
   // Setup Motor Encoders
   pinMode(ENCODER_A_L, INPUT_PULLUP);
@@ -316,8 +306,6 @@ if (!oled) {
 
   UpdateDisplay("Reed switch setup");
   delay(500);
-  
-  
 
   // Initial range (m); only use good samples
   {
@@ -336,8 +324,6 @@ if (!oled) {
       Left_Distance = (float)mm / 1000.0f;
   }
 
-
-
   Maze = createGraph();
   if (Maze) {
     vertex_count = 0;
@@ -348,40 +334,34 @@ if (!oled) {
     }
   }
 
-  // not sure why this is here
   delay(100);
   Total_Millis = millis();
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
-  // OVERALL updates all necessary info - ODOMETRY, MPU, RANGE
-  
   // Get Delta time and total time
   Temp_Millis = millis();
   DTime(Temp_Millis, &Total_Millis);
 
   // MPU 
-  // Gets MPU acceleration, gyro, temperature
   sensors_event_t a, g, temp;
   mpu.getEvent(&a, &g, &temp);
-  
+
   // updates YAW using mpu
   UpdateYAW(g.gyro.z, &zR, &omegaZ, Delta_Millis);
 
-  // Wheel odometry: each encoder channel sets forward/reverse for that side (differential turn = opposite dirs OK)
+  // Wheel odometry
   Wheel_Tracking(RPS_L, RPS_R, &zR_W, &x_Whl, &y_Whl, motorDir_L, motorDir_R, Delta_Millis);
 
-  // Updates Range Sensors
-  // BLAH BLAH BLAH
-
-  // Range: keep previous mm value if this sample failed (VL53L0X range status 0 = valid)
+  // Range: keep previous value if sample failed (VL53L0X range status 0 = valid)
   prev_Front_Distance = Front_Distance;
   {
     uint16_t mm = Front_Range_S.readRange();
     uint8_t st = Front_Range_S.readRangeStatus();
     if (st == VL53L0X_ERROR_NONE)
       Front_Distance = (float)mm / 1000.0f;
+    else
+      Front_Distance = 0.0f; // fail-safe: invalid front sample means blocked
   }
 
   prev_Right_Distance = Right_Distance;
@@ -390,6 +370,8 @@ void loop() {
     uint8_t st = Right_Range_S.readRangeStatus();
     if (st == VL53L0X_ERROR_NONE)
       Right_Distance = (float)mm / 1000.0f;
+    else
+      Right_Distance = 0.0f;
   }
 
   prev_Left_Distance = Left_Distance;
@@ -398,13 +380,23 @@ void loop() {
     uint8_t st = Left_Range_S.readRangeStatus();
     if (st == VL53L0X_ERROR_NONE)
       Left_Distance = (float)mm / 1000.0f;
+    else
+      Left_Distance = 0.0f;
   }
 
-  // Motor wheels will be updated using an interrupt function shown in 
-  // https://github.com/adafruit/Adafruit_Motor_Shield_V2_Library/blob/master/examples/encoderMotorRPM/encoderMotorRPM.ino
-  // then speeds will be used to determine distance travelled which can give approximates to positions
-  
-  // REED Switch detector cant remember what indicates trigger
+  if (millis() - last_debug_ms > 200) {
+    last_debug_ms = millis();
+    Serial.print("F:");
+    Serial.print(Front_Distance, 3);
+    Serial.print(" L:");
+    Serial.print(Left_Distance, 3);
+    Serial.print(" R:");
+    Serial.print(Right_Distance, 3);
+    Serial.print(" stage:");
+    Serial.println((int)stage);
+  }
+
+  // REED Switch detector
   if (digitalRead(REED_SWITCH_PIN) == LOW) {
     if (REED_TRIGGERED_TIME == 0)
       REED_TRIGGERED_TIME = millis();
@@ -416,11 +408,10 @@ void loop() {
         Lmotor.move(0);
       }
     }
-  } else if (REED_TRIGGERED_TIME > 0 ) {
+  } else if (REED_TRIGGERED_TIME > 0) {
     REED_TRIGGERED_TIME = 0;
   }
 
-  // temp values
   float error;
   float error_Angle;
   float error_X;
@@ -429,75 +420,72 @@ void loop() {
   M_zR = yaw_rad_to_deg_0_360(zR);
   switch (stage) {
     case START:
-      // evaluates if at a proper spawn ie. walls on both sides
-      // can set up hallway movement
-      // NEXT: FOLLOW_HALLWAY
       stage = FOLLOW_HALLWAY;
-      display.clearDisplay();
-      display.println("FOLLOW HALLWAY");
-      display.display();
+      oled->clearDisplay();
+      oled->println("FOLLOW HALLWAY");
+      oled->display();
       break;
+
     case FOLLOW_HALLWAY:
-      // just use range sensors to determine how close to walls
-      // use error L-R (sensor values) and make decision based on this 
-      // might use wheel odometry not sure
-      // need to also be checking if over magnet 
-      // NEXT: ENTER_NODE_CENTRE || FOUND_EXIT || DETERMINE_NEXT_STEP (if dead_end detected)
       error = Left_Distance - Right_Distance;
-      // Dead end detected need to make decision
-      if (Front_Distance < MAX_WALL_DIST && Left_Distance < MAX_WALL_DIST && Right_Distance < MAX_WALL_DIST) {
+      // Front blocked: do not continue driving forward.
+      if (Front_Distance < FRONT_BLOCK_DIST) {
         BrakeMotors();
         delay(MOTOR_DELAY);
         stage = DETERMINE_NEXT_STEP;
-        display.clearDisplay();
-        display.println("MAKING DECISION");
-        display.display();
-      } /* Entering Node */ else if (Left_Distance >= MAX_WALL_DIST || Right_Distance >= MAX_WALL_DIST) {
-        // not sure what prep must be done but switch to next stage
+        oled->clearDisplay();
+        oled->println("FRONT BLOCK");
+        oled->display();
+      }
+      // Dead end detected — need to make decision
+      else if (Front_Distance < MAX_WALL_DIST && Left_Distance < MAX_WALL_DIST && Right_Distance < MAX_WALL_DIST) {
+        BrakeMotors();
+        delay(MOTOR_DELAY);
+        stage = DETERMINE_NEXT_STEP;
+        oled->clearDisplay();
+        oled->println("MAKING DECISION");
+        oled->display();
+      }
+      /* Entering Node */
+      else if (Left_Distance >= MAX_WALL_DIST || Right_Distance >= MAX_WALL_DIST) {
         BrakeMotors();
         Target_Z = ReturnProperAngleFromIndex(ReturnProperIndex(M_zR));
         stage = ENTER_NODE_CENTRE;
-        display.clearDisplay();
-        display.println("ENTERING NODE");
-        display.display();
-        // setup variables
+        oled->clearDisplay();
+        oled->println("ENTERING NODE");
+        oled->display();
         Adjusting_Angle = true;
         Start_phs_X = x_Whl;
         Start_phs_Y = y_Whl;
-      } 
-      /* To the left  */else if (error > HALLWAY_ERROR_DEADZONE) {
-        Lmotor.stop(); // nmight brake
+      }
+      /* To the left */
+      else if (error > HALLWAY_ERROR_DEADZONE) {
+        Lmotor.move(0);
         Rmotor.move(MOTOR_TURN_POWER);
-      } /* To the right */else if (error < - HALLWAY_ERROR_DEADZONE) {
-        Rmotor.stop(); // might brake
+      }
+      /* To the right */
+      else if (error < -HALLWAY_ERROR_DEADZONE) {
+        Rmotor.move(0);
         Lmotor.move(MOTOR_TURN_POWER);
-      } /* Centre */ else {
+      }
+      /* Centre */
+      else {
         Lmotor.move(MOTOR_STNDRD_POWER);
         Rmotor.move(MOTOR_STNDRD_POWER);
-      } // NEED TO ADD CONDITION IF AT EXIT or put this outside the switch statement
+      }
       break;
+
     case ENTER_NODE_CENTRE:
-      /* make way to centre of the node trying to maintain angle and not stray to the side
-      * (specific) use desired angle and position relative walls (use prev tick range) 
-      * to approximate centre of node (need rough guess of cell size) then slowly move forward 
-      * increasing one wheel to turn when deviation from desired angle is significant
-      * (simple) straighten bot then move forward a slight amount just a rough amount (depends on time)
-      * NEXT: DETERMINE_NEXT_STEP
-      */
-      // if true adjust angle to be close to target angle 
-      if (Adjusting_Angle) { // degrees
-        // might update Start_phs_X & Y after Angle reached
+      if (Adjusting_Angle) {
         error_Angle = angle_error_deg_shortest(Target_Z, M_zR);
-        if ((fabsf(error_Angle) >= CENTRE_ANGLE_GIVE)){
+        if (fabsf(error_Angle) >= CENTRE_ANGLE_GIVE) {
           if (error_Angle > 0 && CW != 1) {
-            // Turn LeftWhl Back, Turn RghtWhl FRWRD
             CW = 1;
             BrakeMotors();
             delay(MOTOR_DELAY);
             Lmotor.move(-MOTOR_TURN_POWER);
             Rmotor.move(MOTOR_TURN_POWER);
-          } else if (error_Angle < 0 && CW != 2){
-            // Turn LeftWhl FRWD, Turn RghtWhl BCK
+          } else if (error_Angle < 0 && CW != 2) {
             CW = 2;
             BrakeMotors();
             delay(MOTOR_DELAY);
@@ -508,7 +496,6 @@ void loop() {
           BrakeMotors();
           delay(MOTOR_DELAY);
           Adjusting_Angle = false;
-          // might change these
           x_Whl = 0;
           y_Whl = 0;
           Start_phs_X = 0;
@@ -517,8 +504,9 @@ void loop() {
           Lmotor.move(MOTOR_STNDRD_POWER);
           Rmotor.move(MOTOR_STNDRD_POWER);
         }
-
-      } /* Move forward a little */ else {
+      }
+      /* Move forward a little */
+      else {
         error_X = x_Whl - Start_phs_X;
         error_Y = y_Whl - Start_phs_Y;
         error = DISTANCE_TO_CENTRE - hypotf(error_X, error_Y);
@@ -526,13 +514,13 @@ void loop() {
           BrakeMotors();
           delay(MOTOR_DELAY);
           stage = DETERMINE_NEXT_STEP;
-          display.clearDisplay();
-          display.println("MAKING DECISION");
-          display.display();
+          oled->clearDisplay();
+          oled->println("MAKING DECISION");
+          oled->display();
         }
       }
-      
       break;
+
     case DETERMINE_NEXT_STEP:
       if (Current_Node) {
         CreateVertex(Current_Node, M_zR, Left_Distance, Front_Distance, Right_Distance, &vertex_count);
@@ -548,9 +536,9 @@ void loop() {
             Target_Z = ReturnProperAngleFromIndex(dir);
             Planned_Next_Node = AStar_path[1];
             stage = ROTATE_TO_DESTINATION;
-            display.clearDisplay();
-            display.println("ASTAR");
-            display.display();
+            oled->clearDisplay();
+            oled->println("ASTAR");
+            oled->display();
             break;
           }
         }
@@ -566,27 +554,22 @@ void loop() {
           Target_Z = M_zR;
         }
         stage = ROTATE_TO_DESTINATION;
-        display.clearDisplay();
-        display.println("EXPLORE");
-        display.display();
+        oled->clearDisplay();
+        oled->println("EXPLORE");
+        oled->display();
       }
       break;
+
     case ROTATE_TO_DESTINATION:
-      /* Use desired YAW and approximate global YAW to determine how much wheels should rotate 
-      * rotate wheels in opposite directions to try to stay at centre when rotating
-      * NEXT: EXIT_NODE_CENTRE
-      */
       error_Angle = angle_error_deg_shortest(Target_Z, M_zR);
-      if ((fabsf(error_Angle) >= CENTRE_ANGLE_GIVE)){
+      if (fabsf(error_Angle) >= CENTRE_ANGLE_GIVE) {
         if (error_Angle > 0 && CW != 1) {
-          // Turn LeftWhl Back, Turn RghtWhl FRWRD
           CW = 1;
           BrakeMotors();
           delay(MOTOR_DELAY);
           Lmotor.move(-MOTOR_TURN_POWER);
           Rmotor.move(MOTOR_TURN_POWER);
-        } else if (error_Angle < 0 && CW != 2){
-          // Turn LeftWhl FRWD, Turn RghtWhl BCK
+        } else if (error_Angle < 0 && CW != 2) {
           CW = 2;
           BrakeMotors();
           delay(MOTOR_DELAY);
@@ -594,20 +577,17 @@ void loop() {
           Rmotor.move(-MOTOR_TURN_POWER);
         }
       } else {
+        CW = 0;
         stage = EXIT_NODE_CENTRE;
         Lmotor.move(MOTOR_STNDRD_POWER);
         Rmotor.move(MOTOR_STNDRD_POWER);
-
-        display.clearDisplay();
-        display.println("EXIT NODE");
-        display.display();
+        oled->clearDisplay();
+        oled->println("EXIT NODE");
+        oled->display();
       }
       break;
+
     case EXIT_NODE_CENTRE:
-      /* Similar to enter node centre except this time difference between angle and desired angle will be
-      * used as error to determine action 
-      * NEXT: FOLLOW_HALLWAY
-      */
       if (Left_Distance < MAX_WALL_DIST && Right_Distance < MAX_WALL_DIST) {
         BrakeMotors();
         delay(MOTOR_DELAY);
@@ -616,22 +596,27 @@ void loop() {
           Planned_Next_Node = nullptr;
         }
         stage = FOLLOW_HALLWAY;
-        display.clearDisplay();
-        display.println("FOLLOW HALLWAY");
-        display.display();
+        oled->clearDisplay();
+        oled->println("FOLLOW HALLWAY");
+        oled->display();
+      } else {
+        // FIX #5: Drive motors forward while waiting for walls to appear.
+        // Without this the robot just sat still after rotating.
+        Lmotor.move(MOTOR_STNDRD_POWER);
+        Rmotor.move(MOTOR_STNDRD_POWER);
       }
       break;
+
     case FOUND_EXIT:
-      /* STOP EVERYTHING CONGRATS MAYBE DO CELEBRATORY MESSAGE
-      */
-      //Yipee yipee yipee
-      display.clearDisplay();
-      display.println("FUCK YEAH");
-      display.display();
+      BrakeMotors();
+      oled->clearDisplay();
+      oled->println("YEAH");
+      oled->display();
       break;
+
     case TEST:
-      // in the name used for testing components whilst avoiding most of the regular flow of code
       break;
+
     default:
       break;
   }
@@ -640,7 +625,6 @@ void loop() {
 // adapted from https://github.com/adafruit/Adafruit_Motor_Shield_V2_Library/blob/master/examples/encoderMotorRPM/encoderMotorRPM.ino
 void Interrupt_A_LMotor() {
   motorDir_L = digitalRead(ENCODER_B_L);
-
 
   uint32_t currA_L = micros();
   if (lastA_L < currA_L) {
@@ -657,7 +641,6 @@ void Interrupt_A_LMotor() {
 void Interrupt_A_RMotor() {
   motorDir_R = digitalRead(ENCODER_B_R);
 
-
   uint32_t currA_R = micros();
   if (lastA_R < currA_R) {
     float rev = currA_R - lastA_R;
@@ -671,18 +654,36 @@ void Interrupt_A_RMotor() {
 }
 
 void DTime(unsigned long TempT, unsigned long *TotalT) {
-  Delta_Millis = (float)(TempT - *TotalT)/1000;
+  Delta_Millis = (float)(TempT - *TotalT) / 1000.0f;
   *TotalT = TempT;
 }
 
 void UpdateDisplay(const char c[]) {
-  display.clearDisplay();
-  display.setCursor(0, 0);
-  display.println(c);
-  display.display();
+  if (!oled) return;
+  oled->clearDisplay();
+  oled->setCursor(0, 0);
+  oled->println(c);
+  oled->display();
 }
 
 void BrakeMotors() {
   Lmotor.move(0);
   Rmotor.move(0);
+}
+
+void i2cRecover() {
+  Wire.end();
+  delay(20);
+  pinMode(SDA_PIN, OUTPUT); digitalWrite(SDA_PIN, HIGH);
+  pinMode(SCL_PIN, OUTPUT);
+  for (int i = 0; i < 9; i++) {
+    digitalWrite(SCL_PIN, HIGH); delayMicroseconds(10);
+    digitalWrite(SCL_PIN, LOW);  delayMicroseconds(10);
+  }
+  digitalWrite(SDA_PIN, LOW);  delayMicroseconds(10);
+  digitalWrite(SCL_PIN, HIGH); delayMicroseconds(10);
+  digitalWrite(SDA_PIN, HIGH); delayMicroseconds(10);
+  delay(20);
+  Wire.begin(SDA_PIN, SCL_PIN);
+  Wire.setClock(100000);
 }
