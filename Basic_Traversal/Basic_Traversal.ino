@@ -183,32 +183,50 @@ void setup() {
 
   // Setup I2C
   Wire.begin(SDA_PIN, SCL_PIN);
-  Wire1.begin(13,14);
+Wire.setClock(100000);
+  // Wire1.begin(13,14);
+
+
+Lmotor.init(IN1_PIN, IN2_PIN, Lchannel, false);
+if (Lmotor.move(50)) UpdateDisplay("LWorks");   
+delay(500);
+Rmotor.init(IN3_PIN, IN4_PIN, Rchannel, true);
+if (Rmotor.move(50)) UpdateDisplay("RWorks");  
+delay(500);
+BrakeMotors();    
+
+
+ oled = new Adafruit_SSD1306(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+if (!oled) {
+  Serial.println("OLED alloc failed -- out of heap");
+} else {
+  oled_init = oled->begin(SSD1306_SWITCHCAPVCC, 0x3C);
+}
 
   delay(500);
   // Setup Screen
-  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { }
+  if(!oled->begin(SSD1306_SWITCHCAPVCC, 0x3C)) { }
     // Serial.println("SSD1306 allocation failed");
   // } else Serial.println("allocation screen success");
   // check if address is correct
-  display.display();
+  oled->display();
   delay(2000);
-  display.clearDisplay();
-  display.setTextSize(1);
-  display.setTextColor(WHITE);
-  display.setCursor(0, 0);
+  oled->clearDisplay();
+  oled->setTextSize(1);
+  oled->setTextColor(WHITE);
+  oled->setCursor(0, 0);
 
-  display.println("WORKS");
-  display.display();
+  oled->println("WORKS");
+  oled->display();
 
   // Setup MPU
   if (!mpu.begin()) {
     UpdateDisplay("MPU not work");
   } else {
 
-    display.clearDisplay();
-    display.println("MPUConnected");
-    display.display();
+    oled->clearDisplay();
+    oled->println("MPUConnected");
+    oled->display();
   }
   
   mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
