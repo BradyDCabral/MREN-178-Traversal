@@ -65,8 +65,8 @@ static float angle_error_deg_shortest(float target_deg, float current_deg) {
 
 // Stage management
 STAGE stage = START;
-#define HALLWAY_ERROR_DEADZONE 0.010 // NOT ACCURATE
-#define FRONT_BLOCK_DIST 0.15 // m, immediate front-stop threshold
+#define HALLWAY_ERROR_DEADZONE 0.050 // NOT ACCURATE
+#define FRONT_BLOCK_DIST 0.10 // m, immediate front-stop threshold
 bool Adjusting_Angle = false;
 float Start_phs_X = 0;
 float Start_phs_Y = 0;
@@ -75,7 +75,7 @@ uint8_t CW = 0;
 // Entering Centre of node
 #define DISTANCE_TO_CENTRE 0.1
 #define CENTRE_DIST_GIVE 0.005
-#define CENTRE_ANGLE_GIVE 4 // degree
+#define CENTRE_ANGLE_GIVE 5 // degree
 
 // Wheel odometry heading (radians), used by Wheel_Tracking — not the same units as MPU zR (degrees)
 float zR_W = 0;
@@ -233,11 +233,11 @@ void setup() {
 
   // --- Motor init (now only once, after OLED is ready) ---
   Lmotor.init(IN1_PIN, IN2_PIN, Lchannel, false);
-  if (Lmotor.move(50)) UpdateDisplay("LWorks");
+  // if (Lmotor.move(50)) UpdateDisplay("LWorks");
   delay(500);
 
   Rmotor.init(IN3_PIN, IN4_PIN, Rchannel, true);
-  if (Rmotor.move(50)) UpdateDisplay("RWorks");
+  // if (Rmotor.move(50)) UpdateDisplay("RWorks");
   delay(500);
   BrakeMotors();
 
