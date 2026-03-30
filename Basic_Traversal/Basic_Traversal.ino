@@ -54,11 +54,11 @@ static float angle_error_deg_shortest(float target_deg, float current_deg) {
 #define GEARING 50 // might not be accurate
 #define ENCODERMULT 12 // definetly NOT ACCURATE
 // LEFT
-#define ENCODER_A_L 17 // NOT ACCURATE
-#define ENCODER_B_L 18 // NOT ACCURATE
+#define ENCODER_A_L 6 // NOT ACCURATE
+#define ENCODER_B_L 5 // NOT ACCURATE
 // RIGHT
-#define ENCODER_A_R 11 // NOT ACCURATE
-#define ENCODER_B_R 12 // NOT ACCURATE
+#define ENCODER_A_R 15 // NOT ACCURATE 6
+#define ENCODER_B_R 7 // NOT ACCURATE 5
 
 // Stage management
 STAGE stage = START;
@@ -125,15 +125,15 @@ volatile bool motorDir_R = HIGH; // not sure how to treat this yet
 
 // VL53L0X range sensor variables
 Adafruit_VL53L0X Front_Range_S = Adafruit_VL53L0X();
-const int Shut_X_Front = 11; // unknown
+const int Shut_X_Front = 10; // unknown
 #define Front_Address 0x27
 
 Adafruit_VL53L0X Right_Range_S = Adafruit_VL53L0X();
-const int Shut_X_Right = 16; // unknown
+const int Shut_X_Right = 11;// 16 // unknown
 #define Right_Address 0x26
 
 Adafruit_VL53L0X Left_Range_S = Adafruit_VL53L0X();
-const int Shut_X_Left = 46; // unknown
+const int Shut_X_Left = 12; // 46 // unknown
 #define Left_Address 0x25
 
 // #define MAX_WALL_DIST 0.1 // this is a guess
@@ -150,7 +150,7 @@ float prev_Left_Distance = 0;
 #define SCREEN_HEIGHT 64
 #define SCREEN_WIDTH 128
 
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire1, -1);
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
 // Reed Switch
 #define REED_SWITCH_PIN 12
@@ -178,12 +178,12 @@ void setup() {
   // put your setup code here, to run once:
   // Serial1.begin(115200, SERIAL_8N1, 15, 16);
   // Serial.swap();
-
+  // Serial.begin(115200);
   // UNABLE to get Serial to work if RX and TX are used
 
   // Setup I2C
   Wire.begin(SDA_PIN, SCL_PIN);
-  Wire1.begin(13,14);
+  // Wire1.begin(13,14);
 
   delay(500);
   // Setup Screen
@@ -239,13 +239,13 @@ void setup() {
   // Serial.println(Front_Range_S.readRange());
   digitalWrite(Shut_X_Right, HIGH);
   // Right_Range_S.begin(Right_Address);
-  if (!Right_Range_S.begin(Right_Address)) ;
+  if (!Right_Range_S.begin(Right_Address)) UpdateDisplay("Right NOT WORKS");
   else UpdateDisplay("Right WORKS");
   delay(500);
   // else Serial.println("RIGHT SENSOR WORKS");
   // Serial.println(Right_Range_S.readRange());
   digitalWrite(Shut_X_Left, HIGH);
-  if (!Left_Range_S.begin(Left_Address));
+  if (!Left_Range_S.begin(Left_Address)) UpdateDisplay("Left NOT WORKS");
   else UpdateDisplay("LEFT Works");
   delay(500);
   // else Serial.println("LEFT SENSOR WORKS");
@@ -257,11 +257,11 @@ void setup() {
   
   // Setup Motor
   // will need to swap one to have consistency
-  Lmotor.init(IN3_PIN, IN4_PIN, Lchannel, false);
+  Lmotor.init(IN1_PIN, IN2_PIN, Lchannel, false);
   if (Lmotor.move(50)) UpdateDisplay("LWorks");
   delay(500);
 
-  Rmotor.init(IN1_PIN, IN2_PIN, Rchannel, true);
+  Rmotor.init(IN3_PIN, IN4_PIN, Rchannel, true);
   if (Rmotor.move(50)) UpdateDisplay("RWorks");
   delay(500);
   // delay(100);
@@ -448,10 +448,10 @@ void loop() {
         Start_phs_Y = y_Whl;
       } 
       /* To the left  */else if (error > HALLWAY_ERROR_DEADZONE) {
-        Lmotor.stop(); // nmight brake
+        Lmotor.move(0); // nmight brake
         Rmotor.move(MOTOR_TURN_POWER);
       } /* To the right */else if (error < - HALLWAY_ERROR_DEADZONE) {
-        Rmotor.stop(); // might brake
+        Rmotor.move(0); // might brake
         Lmotor.move(MOTOR_TURN_POWER);
       } /* Centre */ else {
         Lmotor.move(MOTOR_STNDRD_POWER);
@@ -606,9 +606,10 @@ void loop() {
     case FOUND_EXIT:
       /* STOP EVERYTHING CONGRATS MAYBE DO CELEBRATORY MESSAGE
       */
+      BrakeMotors();
       //Yipee yipee yipee
       display.clearDisplay();
-      display.println("FUCK YEAH");
+      display.println("YEAH");
       display.display();
       break;
     case TEST:
