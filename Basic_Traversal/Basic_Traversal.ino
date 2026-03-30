@@ -13,6 +13,9 @@
 #include <Cdrv8833.h>
 #include "M_CONSTANTS.h"
 #include <cmath>
+#include "esp_task_wdt.h"
+
+
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -62,7 +65,7 @@ static float angle_error_deg_shortest(float target_deg, float current_deg) {
 
 // Stage management
 STAGE stage = START;
-#define HALLWAY_ERROR_DEADZONE 0.005 // NOT ACCURATE
+#define HALLWAY_ERROR_DEADZONE 0.010 // NOT ACCURATE
 bool Adjusting_Angle = false;
 float Start_phs_X = 0;
 float Start_phs_Y = 0;
@@ -126,15 +129,15 @@ volatile bool motorDir_R = HIGH; // not sure how to treat this yet
 // VL53L0X range sensor variables
 Adafruit_VL53L0X Front_Range_S = Adafruit_VL53L0X();
 const int Shut_X_Front = 10; // unknown
-#define Front_Address 0x27
+#define Front_Address 0x30
 
 Adafruit_VL53L0X Right_Range_S = Adafruit_VL53L0X();
 const int Shut_X_Right = 11;// 16 // unknown
-#define Right_Address 0x26
+#define Right_Address 0x31
 
 Adafruit_VL53L0X Left_Range_S = Adafruit_VL53L0X();
 const int Shut_X_Left = 12; // 46 // unknown
-#define Left_Address 0x25
+#define Left_Address 0x29
 
 // #define MAX_WALL_DIST 0.1 // this is a guess
 
@@ -170,8 +173,9 @@ int vertex_count = 0;
 pVertex AStar_path[MAX_NODES];
 int AStar_path_len = 0;
 
+bool oled_init = false;
 
-
+Adafruit_SSD1306* oled = nullptr;
 
 
 void setup() {
@@ -181,34 +185,70 @@ void setup() {
   // Serial.begin(115200);
   // UNABLE to get Serial to work if RX and TX are used
   Serial.begin(115200);
+  delay(1000);
+  pinMode(IN1_PIN, OUTPUT); digitalWrite(IN1_PIN, LOW);
+  pinMode(IN2_PIN, OUTPUT); digitalWrite(IN2_PIN, LOW);
+  pinMode(IN3_PIN, OUTPUT); digitalWrite(IN3_PIN, LOW);
+  pinMode(IN4_PIN, OUTPUT); digitalWrite(IN4_PIN, LOW);
   // Setup I2C
-  Wire.begin(SDA_PIN, SCL_PIN);
+  //esp_task_wdt_delete(NULL);
+ Wire.end();  // release bus first
+delay(50);
+pinMode(SDA_PIN, OUTPUT); digitalWrite(SDA_PIN, HIGH);
+pinMode(SCL_PIN, OUTPUT);
+for(int i = 0; i < 9; i++) {
+    digitalWrite(SCL_PIN, HIGH); delayMicroseconds(10);
+    digitalWrite(SCL_PIN, LOW);  delayMicroseconds(10);
+}
+// Send STOP condition
+digitalWrite(SDA_PIN, LOW); delayMicroseconds(10);
+digitalWrite(SCL_PIN, HIGH); delayMicroseconds(10);
+digitalWrite(SDA_PIN, HIGH); delayMicroseconds(10);
+Wire.begin(SDA_PIN, SCL_PIN);
+Wire.setClock(100000);
   // Wire1.begin(13,14);
+
+
+Lmotor.init(IN1_PIN, IN2_PIN, Lchannel, false);
+if (Lmotor.move(50)) UpdateDisplay("LWorks");   
+delay(500);
+Rmotor.init(IN3_PIN, IN4_PIN, Rchannel, true);
+if (Rmotor.move(50)) UpdateDisplay("RWorks");  
+delay(500);
+BrakeMotors();    
+
+
+ oled = new Adafruit_SSD1306(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+if (!oled) {
+  Serial.println("OLED alloc failed -- out of heap");
+} else {
+  oled_init = oled->begin(SSD1306_SWITCHCAPVCC, 0x3C);
+}
 
   delay(500);
   // Setup Screen
-  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { }
+  if(!oled->begin(SSD1306_SWITCHCAPVCC, 0x3C)) { }
     // Serial.println("SSD1306 allocation failed");
   // } else Serial.println("allocation screen success");
   // check if address is correct
-  display.display();
+  oled->display();
   delay(2000);
-  display.clearDisplay();
-  display.setTextSize(1);
-  display.setTextColor(WHITE);
-  display.setCursor(0, 0);
+  oled->clearDisplay();
+  oled->setTextSize(1);
+  oled->setTextColor(WHITE);
+  oled->setCursor(0, 0);
 
-  display.println("WORKS");
-  display.display();
+  oled->println("WORKS");
+  oled->display();
 
   // Setup MPU
   if (!mpu.begin()) {
     UpdateDisplay("MPU not work");
   } else {
 
-    display.clearDisplay();
-    display.println("MPUConnected");
-    display.display();
+    oled->clearDisplay();
+    oled->println("MPUConnected");
+    oled->display();
   }
   
   mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
@@ -338,7 +378,9 @@ void setup() {
 void loop() {
   // put your main code here, to run repeatedly:
   // OVERALL updates all necessary info - ODOMETRY, MPU, RANGE
-  
+  if (Wire.endTransmission() != 0) {
+    i2cRecover();
+  }
   // Get Delta time and total time
   Temp_Millis = millis();
   DTime(Temp_Millis, &Total_Millis);
@@ -415,9 +457,9 @@ void loop() {
       // can set up hallway movement
       // NEXT: FOLLOW_HALLWAY
       stage = FOLLOW_HALLWAY;
-      display.clearDisplay();
-      display.println("FOLLOW HALLWAY");
-      display.display();
+      oled->clearDisplay();
+      oled->println("FOLLOW HALLWAY");
+      oled->display();
       break;
     case FOLLOW_HALLWAY:
       // just use range sensors to determine how close to walls
@@ -431,17 +473,17 @@ void loop() {
         BrakeMotors();
         delay(MOTOR_DELAY);
         stage = DETERMINE_NEXT_STEP;
-        display.clearDisplay();
-        display.println("MAKING DECISION");
-        display.display();
+        oled->clearDisplay();
+        oled->println("MAKING DECISION");
+        oled->display();
       } /* Entering Node */ else if (Left_Distance >= MAX_WALL_DIST || Right_Distance >= MAX_WALL_DIST) {
         // not sure what prep must be done but switch to next stage
         BrakeMotors();
         Target_Z = ReturnProperAngleFromIndex(ReturnProperIndex(M_zR));
         stage = ENTER_NODE_CENTRE;
-        display.clearDisplay();
-        display.println("ENTERING NODE");
-        display.display();
+        oled->clearDisplay();
+        oled->println("ENTERING NODE");
+        oled->display();
         // setup variables
         Adjusting_Angle = true;
         Start_phs_X = x_Whl;
@@ -508,9 +550,9 @@ void loop() {
           BrakeMotors();
           delay(MOTOR_DELAY);
           stage = DETERMINE_NEXT_STEP;
-          display.clearDisplay();
-          display.println("MAKING DECISION");
-          display.display();
+          oled->clearDisplay();
+          oled->println("MAKING DECISION");
+          oled->display();
         }
       }
       
@@ -530,9 +572,9 @@ void loop() {
             Target_Z = ReturnProperAngleFromIndex(dir);
             Planned_Next_Node = AStar_path[1];
             stage = ROTATE_TO_DESTINATION;
-            display.clearDisplay();
-            display.println("ASTAR");
-            display.display();
+            oled->clearDisplay();
+            oled->println("ASTAR");
+            oled->display();
             break;
           }
         }
@@ -548,9 +590,9 @@ void loop() {
           Target_Z = M_zR;
         }
         stage = ROTATE_TO_DESTINATION;
-        display.clearDisplay();
-        display.println("EXPLORE");
-        display.display();
+        oled->clearDisplay();
+        oled->println("EXPLORE");
+        oled->display();
       }
       break;
     case ROTATE_TO_DESTINATION:
@@ -580,9 +622,9 @@ void loop() {
         Lmotor.move(MOTOR_STNDRD_POWER);
         Rmotor.move(MOTOR_STNDRD_POWER);
 
-        display.clearDisplay();
-        display.println("EXIT NODE");
-        display.display();
+        oled->clearDisplay();
+        oled->println("EXIT NODE");
+        oled->display();
       }
       break;
     case EXIT_NODE_CENTRE:
@@ -598,9 +640,9 @@ void loop() {
           Planned_Next_Node = nullptr;
         }
         stage = FOLLOW_HALLWAY;
-        display.clearDisplay();
-        display.println("FOLLOW HALLWAY");
-        display.display();
+        oled->clearDisplay();
+        oled->println("FOLLOW HALLWAY");
+        oled->display();
       }
       break;
     case FOUND_EXIT:
@@ -608,9 +650,9 @@ void loop() {
       */
       BrakeMotors();
       //Yipee yipee yipee
-      display.clearDisplay();
-      display.println("YEAH");
-      display.display();
+      oled->clearDisplay();
+      oled->println("YEAH");
+      oled->display();
       break;
     case TEST:
       // in the name used for testing components whilst avoiding most of the regular flow of code
@@ -659,13 +701,31 @@ void DTime(unsigned long TempT, unsigned long *TotalT) {
 }
 
 void UpdateDisplay(const char c[]) {
-  display.clearDisplay();
-  display.setCursor(0, 0);
-  display.println(c);
-  display.display();
+  if (!oled) return;
+  oled->clearDisplay();
+  oled->setCursor(0, 0);
+  oled->println(c);
+  oled->display();
 }
 
 void BrakeMotors() {
   Lmotor.move(0);
   Rmotor.move(0);
+}
+
+void i2cRecover() {
+  Wire.end();
+  delay(20);
+  pinMode(SDA_PIN, OUTPUT); digitalWrite(SDA_PIN, HIGH);
+  pinMode(SCL_PIN, OUTPUT);
+  for (int i = 0; i < 9; i++) {
+    digitalWrite(SCL_PIN, HIGH); delayMicroseconds(10);
+    digitalWrite(SCL_PIN, LOW);  delayMicroseconds(10);
+  }
+  digitalWrite(SDA_PIN, LOW);  delayMicroseconds(10);
+  digitalWrite(SCL_PIN, HIGH); delayMicroseconds(10);
+  digitalWrite(SDA_PIN, HIGH); delayMicroseconds(10);
+  delay(20);
+  Wire.begin(SDA_PIN, SCL_PIN);
+  Wire.setClock(100000);
 }
