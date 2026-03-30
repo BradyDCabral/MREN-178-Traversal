@@ -66,7 +66,7 @@ static float angle_error_deg_shortest(float target_deg, float current_deg) {
 // Stage management
 STAGE stage = START;
 #define HALLWAY_ERROR_DEADZONE 0.010 // NOT ACCURATE
-#define FRONT_BLOCK_DIST 0.10 // m, immediate front-stop threshold
+#define FRONT_BLOCK_DIST 0.15 // m, immediate front-stop threshold
 bool Adjusting_Angle = false;
 float Start_phs_X = 0;
 float Start_phs_Y = 0;
@@ -75,7 +75,7 @@ uint8_t CW = 0;
 // Entering Centre of node
 #define DISTANCE_TO_CENTRE 0.1
 #define CENTRE_DIST_GIVE 0.005
-#define CENTRE_ANGLE_GIVE 1 // degree
+#define CENTRE_ANGLE_GIVE 4 // degree
 
 // Wheel odometry heading (radians), used by Wheel_Tracking — not the same units as MPU zR (degrees)
 float zR_W = 0;
@@ -360,8 +360,6 @@ void loop() {
     uint8_t st = Front_Range_S.readRangeStatus();
     if (st == VL53L0X_ERROR_NONE)
       Front_Distance = (float)mm / 1000.0f;
-    else
-      Front_Distance = 0.0f; // fail-safe: invalid front sample means blocked
   }
 
   prev_Right_Distance = Right_Distance;
@@ -370,8 +368,6 @@ void loop() {
     uint8_t st = Right_Range_S.readRangeStatus();
     if (st == VL53L0X_ERROR_NONE)
       Right_Distance = (float)mm / 1000.0f;
-    else
-      Right_Distance = 0.0f;
   }
 
   prev_Left_Distance = Left_Distance;
@@ -380,8 +376,6 @@ void loop() {
     uint8_t st = Left_Range_S.readRangeStatus();
     if (st == VL53L0X_ERROR_NONE)
       Left_Distance = (float)mm / 1000.0f;
-    else
-      Left_Distance = 0.0f;
   }
 
   if (millis() - last_debug_ms > 200) {
@@ -460,13 +454,13 @@ void loop() {
       }
       /* To the left */
       else if (error > HALLWAY_ERROR_DEADZONE) {
-        Lmotor.move(0);
-        Rmotor.move(MOTOR_TURN_POWER);
+        Lmotor.move(MOTOR_STNDRD_POWER - 10);
+        Rmotor.move(MOTOR_STNDRD_POWER);
       }
       /* To the right */
       else if (error < -HALLWAY_ERROR_DEADZONE) {
-        Rmotor.move(0);
-        Lmotor.move(MOTOR_TURN_POWER);
+        Rmotor.move(MOTOR_STNDRD_POWER - 10);
+        Lmotor.move(MOTOR_STNDRD_POWER);
       }
       /* Centre */
       else {
@@ -481,20 +475,14 @@ void loop() {
         if (fabsf(error_Angle) >= CENTRE_ANGLE_GIVE) {
           if (error_Angle > 0 && CW != 1) {
             CW = 1;
-            BrakeMotors();
-            delay(MOTOR_DELAY);
             Lmotor.move(-MOTOR_TURN_POWER);
             Rmotor.move(MOTOR_TURN_POWER);
           } else if (error_Angle < 0 && CW != 2) {
             CW = 2;
-            BrakeMotors();
-            delay(MOTOR_DELAY);
             Lmotor.move(MOTOR_TURN_POWER);
             Rmotor.move(-MOTOR_TURN_POWER);
           }
         } else {
-          BrakeMotors();
-          delay(MOTOR_DELAY);
           Adjusting_Angle = false;
           x_Whl = 0;
           y_Whl = 0;
@@ -565,14 +553,10 @@ void loop() {
       if (fabsf(error_Angle) >= CENTRE_ANGLE_GIVE) {
         if (error_Angle > 0 && CW != 1) {
           CW = 1;
-          BrakeMotors();
-          delay(MOTOR_DELAY);
           Lmotor.move(-MOTOR_TURN_POWER);
           Rmotor.move(MOTOR_TURN_POWER);
         } else if (error_Angle < 0 && CW != 2) {
           CW = 2;
-          BrakeMotors();
-          delay(MOTOR_DELAY);
           Lmotor.move(MOTOR_TURN_POWER);
           Rmotor.move(-MOTOR_TURN_POWER);
         }
