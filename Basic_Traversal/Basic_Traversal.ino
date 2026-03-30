@@ -45,8 +45,8 @@ static float angle_error_deg_shortest(float target_deg, float current_deg) {
 #define SCL_PIN 9
 
 // Motor
-#define IN1_PIN 43 // not accurate
-#define IN2_PIN 44 // not accurate 
+#define IN1_PIN 1 // not accurate
+#define IN2_PIN 2 // not accurate 
 #define IN3_PIN 42
 #define IN4_PIN 41
 
@@ -153,7 +153,7 @@ float prev_Left_Distance = 0;
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
 // Reed Switch
-#define REED_SWITCH_PIN 12
+#define REED_SWITCH_PIN 13
 #define REED_MAX_TIME 300
 // no magnet closed
 // magnet open
@@ -180,7 +180,7 @@ void setup() {
   // Serial.swap();
   // Serial.begin(115200);
   // UNABLE to get Serial to work if RX and TX are used
-
+  Serial.begin(115200);
   // Setup I2C
   Wire.begin(SDA_PIN, SCL_PIN);
   // Wire1.begin(13,14);
