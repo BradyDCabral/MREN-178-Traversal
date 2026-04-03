@@ -75,7 +75,7 @@ uint8_t CW = 0;
 // Entering Centre of node
 #define DISTANCE_TO_CENTRE 0.1
 #define CENTRE_DIST_GIVE 0.005
-#define CENTRE_ANGLE_GIVE 5 // degree
+#define CENTRE_ANGLE_GIVE 10 // degree
 
 // Wheel odometry heading (radians), used by Wheel_Tracking — not the same units as MPU zR (degrees)
 float zR_W = 0;
@@ -193,18 +193,18 @@ void setup() {
   // Setup I2C
   Wire.end();  // release bus first
   delay(50);
-  pinMode(SDA_PIN, OUTPUT); digitalWrite(SDA_PIN, HIGH);
-  pinMode(SCL_PIN, OUTPUT);
-  for(int i = 0; i < 9; i++) {
-    digitalWrite(SCL_PIN, HIGH); delayMicroseconds(10);
-    digitalWrite(SCL_PIN, LOW);  delayMicroseconds(10);
-  }
-  // Send STOP condition
-  digitalWrite(SDA_PIN, LOW); delayMicroseconds(10);
-  digitalWrite(SCL_PIN, HIGH); delayMicroseconds(10);
-  digitalWrite(SDA_PIN, HIGH); delayMicroseconds(10);
+  // pinMode(SDA_PIN, OUTPUT); digitalWrite(SDA_PIN, HIGH);
+  // pinMode(SCL_PIN, OUTPUT);
+  // for(int i = 0; i < 9; i++) {
+  //   digitalWrite(SCL_PIN, HIGH); delayMicroseconds(10);
+  //   digitalWrite(SCL_PIN, LOW);  delayMicroseconds(10);
+  // }
+  // // Send STOP condition
+  // digitalWrite(SDA_PIN, LOW); delayMicroseconds(10);
+  // digitalWrite(SCL_PIN, HIGH); delayMicroseconds(10);
+  // digitalWrite(SDA_PIN, HIGH); delayMicroseconds(10);
   Wire.begin(SDA_PIN, SCL_PIN);
-  Wire.setClock(100000);
+  Wire.setClock(50000);
 
   // FIX #2 & #3: Motor init and OLED init are now each done ONCE, in the
   // correct order. OLED must come first so UpdateDisplay() works during motor
@@ -268,6 +268,7 @@ void setup() {
   digitalWrite(Shut_X_Front, HIGH);
   digitalWrite(Shut_X_Right, HIGH);
   digitalWrite(Shut_X_Left, HIGH);
+  delay(10);
   // turn off all but front then assign address
   digitalWrite(Shut_X_Right, LOW);
   digitalWrite(Shut_X_Left, LOW);
@@ -339,6 +340,7 @@ void setup() {
 }
 
 void loop() {
+  Serial.print(Front_Distance);
   // Get Delta time and total time
   Temp_Millis = millis();
   DTime(Temp_Millis, &Total_Millis);
