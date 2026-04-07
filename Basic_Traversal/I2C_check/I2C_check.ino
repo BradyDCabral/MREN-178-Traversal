@@ -33,7 +33,7 @@ void setup() {
   if (!sensor.begin()) {
     Serial.println("FRONT FAILED");
   } else {
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < 20; i++) {
       Serial.printf("Front: %d mm\n", sensor.readRange());
       delay(200);
     }
@@ -48,7 +48,7 @@ void setup() {
   if (!sensor.begin()) {
     Serial.println("RIGHT FAILED");
   } else {
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < 20; i++) {
       Serial.printf("Right: %d mm\n", sensor.readRange());
       delay(200);
     }
@@ -63,7 +63,7 @@ void setup() {
   if (!sensor.begin()) {
     Serial.println("LEFT FAILED");
   } else {
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < 20; i++) {
       Serial.printf("Left: %d mm\n", sensor.readRange());
       delay(200);
     }

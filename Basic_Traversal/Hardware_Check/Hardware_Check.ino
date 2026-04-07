@@ -15,7 +15,7 @@
 int left_distance;
 int right_distance;
 float error;
-const float Kp = 0.8;
+const float Kp = 0.4;
 float correction;
 int left_motor, right_motor; // pwm values for motors
 const int base_speed = 511;
@@ -59,19 +59,19 @@ void setup() {
   digitalWrite(Shut_X_Left, LOW);
   if (!Front_Range_S.begin(Front_Address)) Serial.println("Front NOT WORKS");
   else Serial.println("FRONT WORKS");
-  Front_Range_S.startRangeContinuous();
+  //Front_Range_S.startRangeSingle();
   delay(500);
 
   digitalWrite(Shut_X_Right, HIGH);
   if (!Right_Range_S.begin(Right_Address)) Serial.println("Right NOT WORKS");
   else Serial.println("Right WORKS");
-  Right_Range_S.startRangeContinuous();
+  //Right_Range_S.startRangeSingle();
   delay(500);
 
   digitalWrite(Shut_X_Left, HIGH);
   if (!Left_Range_S.begin(Left_Address)) Serial.println("Left NOT WORKS");
   else Serial.println("LEFT Works");
-  Left_Range_S.startRangeContinuous();
+  //Left_Range_S.startRangeSingle();
   delay(500);
   Serial.println("Scanning I2C...");
   for (byte addr = 1; addr < 127; addr++) {
@@ -95,8 +95,8 @@ void go_forwards(int miliseconds){
 void go_forwards_proportional(){
   correction = Kp * error;
 
-  left_motor = base_speed + correction;
-  right_motor = base_speed - correction;
+  left_motor = base_speed - correction;
+  right_motor = base_speed + correction;
   clamp_values();
   analogWrite(1,(int)right_motor);
   analogWrite(41,(int)left_motor);
@@ -119,17 +119,16 @@ void clamp_values(){
   }
 }
 
-void read_sensors(){
-  VL53L0X_RangingMeasurementData_t measure;
-  Left_Range_S.getRangingMeasurement(&measure, false);
-if (measure.RangeStatus != 4) { 
-    left_distance = measure.RangeMilliMeter;
-}
-  Right_Range_S.getRangingMeasurement(&measure, false);
-  if(measure.RangeStatus != 4){
-    right_distance = measure.RangeMilliMeter;
-  }
+void read_sensors() {
+    VL53L0X_RangingMeasurementData_t measure;
 
+    Left_Range_S.rangingTest(&measure, false);
+    if (measure.RangeStatus != 4)
+        left_distance = measure.RangeMilliMeter;
+
+    Right_Range_S.rangingTest(&measure, false);
+    if (measure.RangeStatus != 4)
+        right_distance = measure.RangeMilliMeter;
 }
 
 void loop() {
@@ -142,7 +141,7 @@ void loop() {
 
   
   go_forwards_proportional();
-  delay(50);
+  delay(5);
   
 
 }
